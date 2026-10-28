@@ -1,6 +1,6 @@
 name: ShiftPilot
 options:
-  bundleIdPrefix: com.shiftpilot
+  bundleIdPrefix: com.clarkcj12
   deploymentTarget:
     iOS: "27.2"
   createIntermediateGroups: true
@@ -9,6 +9,7 @@ settings:
     SWIFT_VERSION: "6.0"
     SWIFT_STRICT_CONCURRENCY: complete
     CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: PJ3CTW9RBR
     MARKETING_VERSION: "0.1.0"
     CURRENT_PROJECT_VERSION: "1"
 targets:
@@ -19,7 +20,7 @@ targets:
       - ShiftPilot
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.shiftpilot.app
+        PRODUCT_BUNDLE_IDENTIFIER: com.clarkcj12.shiftpilot
         INFOPLIST_FILE: ShiftPilot/Resources/Info.plist
         TARGETED_DEVICE_FAMILY: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -33,7 +34,7 @@ targets:
       - target: ShiftPilot
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.shiftpilot.app.tests
+        PRODUCT_BUNDLE_IDENTIFIER: com.clarkcj12.shiftpilot.tests
         GENERATE_INFOPLIST_FILE: YES
 schemes:
   ShiftPilot:
