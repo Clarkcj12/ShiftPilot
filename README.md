@@ -2,6 +2,8 @@
 
 Mileage logging for gig drivers. ShiftPilot notices when you get in your car and records GPS mileage in the background, with no taps needed.
 
+See [docs/PRD.md](docs/PRD.md) for the product requirements, feature status and roadmap.
+
 - iOS 27.2+, SwiftUI, SwiftData, Swift 6 strict concurrency
 - Project generated with [XcodeGen](https://github.com/yonaskolb/XcodeGen)
 
