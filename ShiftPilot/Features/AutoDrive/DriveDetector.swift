@@ -17,7 +17,7 @@ struct DetectionConfig: Sendable {
 
 /// Where a trip's detection came from; stored on the trip.
 enum TripTrigger: String, Sendable, Codable {
-    case carPlay, bluetoothAudio, bleAccessory, motion
+    case carPlay, bluetoothAudio, bleAccessory, motion, manual
 
     init(_ connection: CarConnection) {
         switch connection {
@@ -43,12 +43,19 @@ struct DetectorState: Equatable, Sendable {
     var phase: Phase = .idle
     var connections: Set<CarConnection> = []
     var isAutomotive = false
+    /// The current trip was started by the driver; only `manualStop` ends it.
+    var isManual = false
+    /// Set by `manualStop` so the car signals still present don't immediately
+    /// restart a trip. Cleared once those signals go away.
+    var suppressAutoStart = false
     var candidateSince: Date?
     var fastSince: Date?
     var stillSince: Date?
 
-    /// True while something positively says we're in a moving car.
-    var hasActiveSignal: Bool { !connections.isEmpty || isAutomotive }
+    /// True while the car or motion says we're in a moving car.
+    var hasCarSignal: Bool { !connections.isEmpty || isAutomotive }
+    /// True while something says the trip should continue.
+    var hasActiveSignal: Bool { isManual || hasCarSignal }
 
     mutating func enterDriving() {
         phase = hasActiveSignal ? .driving : .ending
@@ -59,6 +66,7 @@ struct DetectorState: Equatable, Sendable {
 
     mutating func reset() {
         phase = .idle
+        isManual = false
         candidateSince = nil
         fastSince = nil
         stillSince = nil
@@ -80,6 +88,10 @@ enum DetectorEffect: Equatable, Sendable {
 ///     candidate ──timeout──▶ idle (discard)
 ///     driving ──car + motion signals lost──▶ ending ──parked for endDuration──▶ idle (finish)
 ///     ending ──car reconnects / automotive again──▶ driving
+///
+/// Manual overrides: `manualStart` goes straight to driving, and that trip only ends
+/// on `manualStop`. `manualStop` ends any trip and holds off auto-start until the
+/// car and motion signals clear, so the still-connected car doesn't restart it.
 enum DriveDetector {
     static func reduce(
         _ state: inout DetectorState,
@@ -93,11 +105,17 @@ enum DriveDetector {
         case .carConnected(let connection):
             state.connections.insert(connection)
             switch state.phase {
-            case .idle: effects = [.beginTrip(TripTrigger(connection)), .confirmTrip]
-            case .candidate: effects = [.confirmTrip]
-            case .driving, .ending: break
+            case .idle where state.suppressAutoStart:
+                break
+            case .idle:
+                effects = [.beginTrip(TripTrigger(connection)), .confirmTrip]
+                state.enterDriving()
+            case .candidate:
+                effects = [.confirmTrip]
+                state.enterDriving()
+            case .driving, .ending:
+                state.enterDriving()
             }
-            state.enterDriving()
 
         case .carDisconnected(let connection):
             state.connections.remove(connection)
@@ -108,7 +126,7 @@ enum DriveDetector {
         case .motion(let reading):
             state.isAutomotive = reading.isAutomotive && reading.confidence >= config.minimumMotionConfidence
             switch state.phase {
-            case .idle where state.isAutomotive:
+            case .idle where state.isAutomotive && !state.suppressAutoStart:
                 state.phase = .candidate
                 state.candidateSince = now
                 effects = [.beginTrip(.motion)]
@@ -130,8 +148,31 @@ enum DriveDetector {
                 break
             }
 
+        case .manualStart:
+            switch state.phase {
+            case .idle: effects = [.beginTrip(.manual), .confirmTrip]
+            case .candidate: effects = [.confirmTrip]
+            case .driving, .ending: break
+            }
+            state.isManual = true
+            state.suppressAutoStart = false
+            state.enterDriving()
+
+        case .manualStop:
+            switch state.phase {
+            case .idle: break
+            case .candidate: effects = [.discardTrip]
+            case .driving, .ending: effects = [.finishTrip]
+            }
+            state.reset()
+            state.suppressAutoStart = state.hasCarSignal
+
         case .tick:
             break
+        }
+
+        if state.suppressAutoStart, !state.hasCarSignal {
+            state.suppressAutoStart = false
         }
 
         return effects + evaluateTimers(&state, at: now, config: config)

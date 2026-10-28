@@ -65,6 +65,10 @@ ending ──car reconnects / automotive again──▶ driving
 
 All thresholds are in `DetectionConfig`.
 
+**Manual override.** The dashboard has a **Start trip** / **End trip** button:
+- A manually started trip only ends when you tap **End trip**.
+- **End trip** works on any trip. After it, auto-start is held off until the car disconnects and motion stops, so a car that's still connected doesn't immediately start a new trip.
+
 ### Background GPS
 
 `MileageTracker` opens a `CLBackgroundActivitySession` and iterates `CLLocationUpdate.liveUpdates(.automotiveNavigation)`. Before summing distance it filters out three kinds of point:

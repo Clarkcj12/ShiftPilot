@@ -28,6 +28,8 @@ struct TripListView: View {
 struct TripRow: View {
     let trip: Trip
 
+    @AppStorage(DistanceUnit.storageKey) private var unit: DistanceUnit = .localeDefault
+
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
@@ -37,7 +39,7 @@ struct TripRow: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            Text("\(trip.miles, format: .number.precision(.fractionLength(1))) mi")
+            Text(unit.format(meters: trip.distanceMeters))
                 .monospacedDigit()
         }
     }
@@ -48,6 +50,7 @@ struct TripRow: View {
         case .bluetoothAudio: "Car Bluetooth"
         case .bleAccessory: "Accessory"
         case .motion: "Motion"
+        case .manual: "Manual"
         case nil: "Unknown"
         }
         guard let endedAt = trip.endedAt else { return "\(source) · In progress" }

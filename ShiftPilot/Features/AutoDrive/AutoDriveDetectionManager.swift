@@ -81,6 +81,14 @@ final class AutoDriveDetectionManager {
         sources.forEach { $0.refresh() }
     }
 
+    func startTripManually() {
+        handle(.manualStart)
+    }
+
+    func endTripManually() {
+        handle(.manualStop)
+    }
+
     func handle(_ signal: DriveSignal) {
         let previous = state.phase
         let effects = DriveDetector.reduce(&state, signal, at: now(), config: config)

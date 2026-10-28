@@ -6,6 +6,10 @@ enum DriveSignal: Sendable, Equatable {
     case carDisconnected(CarConnection)
     case motion(MotionReading)
     case speed(metersPerSecond: Double)
+    /// The driver tapped Start trip.
+    case manualStart
+    /// The driver tapped End trip.
+    case manualStop
     /// Emitted by the manager's timer so time-based transitions fire without new signals.
     case tick
 }

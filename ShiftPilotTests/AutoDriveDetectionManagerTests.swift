@@ -109,6 +109,65 @@ struct DriveDetectorTests {
         #expect(state.phase == .ending)
         #expect(reduce(&state, .tick, at: 1181) == [.finishTrip])
     }
+
+    // MARK: Manual start/stop
+
+    @Test func manualStartBeginsConfirmedTrip() {
+        var state = DetectorState()
+        #expect(reduce(&state, .manualStart, at: 0) == [.beginTrip(.manual), .confirmTrip])
+        #expect(state.phase == .driving)
+    }
+
+    @Test func manualStartDuringCandidateConfirmsIt() {
+        var state = DetectorState()
+        _ = reduce(&state, .motion(automotive), at: 0)
+        #expect(reduce(&state, .manualStart, at: 10) == [.confirmTrip])
+        #expect(state.phase == .driving)
+    }
+
+    @Test func manualTripIgnoresAutoEnd() {
+        var state = DetectorState()
+        _ = reduce(&state, .manualStart, at: 0)
+        _ = reduce(&state, .motion(stationary), at: 10)
+        _ = reduce(&state, .speed(metersPerSecond: 0), at: 10)
+        #expect(reduce(&state, .tick, at: 3600).isEmpty)
+        #expect(state.phase == .driving)
+
+        #expect(reduce(&state, .manualStop, at: 3601) == [.finishTrip])
+        #expect(state.phase == .idle)
+    }
+
+    @Test func manualStopDuringCandidateDiscards() {
+        var state = DetectorState()
+        _ = reduce(&state, .motion(automotive), at: 0)
+        #expect(reduce(&state, .manualStop, at: 10) == [.discardTrip])
+        #expect(state.phase == .idle)
+    }
+
+    @Test func manualStopWhileConnectedHoldsOffAutoStartUntilDisconnect() {
+        var state = DetectorState()
+        _ = reduce(&state, .carConnected(.carPlay), at: 0)
+        #expect(reduce(&state, .manualStop, at: 600) == [.finishTrip])
+
+        // Still connected: further signals don't restart a trip.
+        #expect(reduce(&state, .motion(automotive), at: 610).isEmpty)
+        #expect(reduce(&state, .carConnected(.carPlay), at: 620).isEmpty)
+        #expect(state.phase == .idle)
+
+        // Once everything clears, the next connection starts a trip again.
+        _ = reduce(&state, .carDisconnected(.carPlay), at: 700)
+        _ = reduce(&state, .motion(stationary), at: 700)
+        #expect(!state.suppressAutoStart)
+        #expect(reduce(&state, .carConnected(.carPlay), at: 900) == [.beginTrip(.carPlay), .confirmTrip])
+    }
+
+    @Test func manualStartOverridesSuppression() {
+        var state = DetectorState()
+        _ = reduce(&state, .carConnected(.carPlay), at: 0)
+        _ = reduce(&state, .manualStop, at: 600)
+        #expect(reduce(&state, .manualStart, at: 610) == [.beginTrip(.manual), .confirmTrip])
+        #expect(state.phase == .driving)
+    }
 }
 
 @MainActor
@@ -149,4 +208,13 @@ private final class MockTracker: TripTracking {
     func confirmTrip() { calls.append(.confirm) }
     func finishTrip() { calls.append(.finish) }
     func discardTrip() { calls.append(.discard) }
+}
+
+struct DistanceUnitTests {
+    @Test func convertsAndFormatsMeters() {
+        #expect(abs(DistanceUnit.miles.value(fromMeters: 1609.344) - 1) < 1e-9)
+        #expect(DistanceUnit.kilometers.value(fromMeters: 2500) == 2.5)
+        #expect(DistanceUnit.kilometers.format(meters: 12_345) == "12.3 km")
+        #expect(DistanceUnit.miles.format(meters: 16_093.44) == "10.0 mi")
+    }
 }

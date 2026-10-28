@@ -6,6 +6,7 @@ struct DashboardView: View {
     @Environment(MileageTracker.self) private var tracker
     @Environment(PermissionsManager.self) private var permissions
     @Query(sort: \Trip.startedAt, order: .reverse) private var trips: [Trip]
+    @AppStorage(DistanceUnit.storageKey) private var unit: DistanceUnit = .localeDefault
 
     var body: some View {
         NavigationStack {
@@ -22,11 +23,19 @@ struct DashboardView: View {
                 }
 
                 Section {
-                    StatusRow(phase: autoDrive.state.phase, miles: tracker.miles, isTracking: tracker.isTracking)
+                    StatusRow(
+                        phase: autoDrive.state.phase,
+                        distance: tracker.isTracking ? unit.format(meters: tracker.distanceMeters) : nil
+                    )
+                    TripControlButton(phase: autoDrive.state.phase) {
+                        autoDrive.startTripManually()
+                    } end: {
+                        autoDrive.endTripManually()
+                    }
                 }
 
                 Section("Today") {
-                    LabeledContent("Miles", value: todayMiles.formatted(.number.precision(.fractionLength(1))))
+                    LabeledContent("Distance", value: unit.format(meters: todayMeters))
                     LabeledContent("Trips", value: "\(todayTrips.count)")
                 }
 
@@ -59,15 +68,50 @@ struct DashboardView: View {
         return trips.filter { $0.startedAt >= startOfDay }
     }
 
-    private var todayMiles: Double {
-        todayTrips.reduce(0) { $0 + $1.miles }
+    private var todayMeters: Double {
+        todayTrips.reduce(0) { $0 + $1.distanceMeters }
+    }
+}
+
+private struct TripControlButton: View {
+    let phase: DetectorState.Phase
+    let start: () -> Void
+    let end: () -> Void
+
+    @State private var isConfirmingEnd = false
+
+    var body: some View {
+        switch phase {
+        case .idle, .candidate:
+            Button(action: start) {
+                Label(phase == .idle ? "Start trip" : "Start trip now", systemImage: "play.fill")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.green)
+            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+        case .driving, .ending:
+            Button(role: .destructive) {
+                isConfirmingEnd = true
+            } label: {
+                Label("End trip", systemImage: "stop.fill")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+            .confirmationDialog("End this trip?", isPresented: $isConfirmingEnd, titleVisibility: .visible) {
+                Button("End trip", role: .destructive, action: end)
+            } message: {
+                Text("The miles logged so far will be saved.")
+            }
+        }
     }
 }
 
 private struct StatusRow: View {
     let phase: DetectorState.Phase
-    let miles: Double
-    let isTracking: Bool
+    /// Formatted live trip distance, or nil when not tracking.
+    let distance: String?
 
     var body: some View {
         HStack(spacing: 12) {
@@ -80,8 +124,8 @@ private struct StatusRow: View {
                 Text(subtitle).font(.subheadline).foregroundStyle(.secondary)
             }
             Spacer()
-            if isTracking {
-                Text("\(miles, format: .number.precision(.fractionLength(1))) mi")
+            if let distance {
+                Text(distance)
                     .font(.title3.monospacedDigit())
             }
         }
@@ -101,7 +145,7 @@ private struct StatusRow: View {
         switch phase {
         case .idle: "Trips start automatically when you connect to your car or start driving."
         case .candidate: "Confirming with GPS speed…"
-        case .driving: "Logging miles"
+        case .driving: "Logging your trip"
         case .ending: "Trip ends after you've been parked a few minutes."
         }
     }

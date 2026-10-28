@@ -7,9 +7,22 @@ struct SettingsView: View {
     @Environment(KnownDevicesStore.self) private var devices
     @Environment(BLEAccessoryMonitor.self) private var bleMonitor
     @Environment(AutoDriveDetectionManager.self) private var autoDrive
+    @AppStorage(DistanceUnit.storageKey) private var unit: DistanceUnit = .localeDefault
 
     var body: some View {
         List {
+            Section {
+                Picker("Distance", selection: $unit) {
+                    ForEach(DistanceUnit.allCases) { unit in
+                        Text(unit.title).tag(unit)
+                    }
+                }
+            } header: {
+                Text("Units")
+            } footer: {
+                Text("Trips are stored precisely, so switching units updates every trip.")
+            }
+
             Section {
                 PermissionRow(title: "Location", status: locationText, isGranted: permissions.hasAlwaysLocation) {
                     permissions.requestLocation()
