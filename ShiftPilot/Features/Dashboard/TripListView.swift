@@ -54,7 +54,6 @@ struct TripRow: View {
         case nil: "Unknown"
         }
         guard let endedAt = trip.endedAt else { return "\(source) · In progress" }
-        let duration = Duration.seconds(endedAt.timeIntervalSince(trip.startedAt))
-        return "\(source) · \(duration.formatted(.units(allowed: [.hours, .minutes], width: .abbreviated)))"
+        return "\(source) · \(Format.duration(endedAt.timeIntervalSince(trip.startedAt)))"
     }
 }

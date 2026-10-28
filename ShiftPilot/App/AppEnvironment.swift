@@ -9,13 +9,14 @@ final class AppEnvironment {
     let bleMonitor: BLEAccessoryMonitor
     let tracker: MileageTracker
     let autoDrive: AutoDriveDetectionManager
+    let shifts: ShiftManager
 
     private let recorder: TripRecorder
     private let waker = SignificantLocationWaker()
 
     init() {
         do {
-            modelContainer = try ModelContainer(for: Trip.self, TripPoint.self)
+            modelContainer = try ModelContainer(for: Trip.self, TripPoint.self, Shift.self, Payout.self)
         } catch {
             fatalError("Could not create the trip store: \(error)")
         }
@@ -23,7 +24,9 @@ final class AppEnvironment {
         permissions = PermissionsManager()
         knownDevices = KnownDevicesStore()
         bleMonitor = BLEAccessoryMonitor(devices: knownDevices)
-        recorder = TripRecorder(context: modelContainer.mainContext)
+        let shifts = ShiftManager(context: modelContainer.mainContext)
+        self.shifts = shifts
+        recorder = TripRecorder(context: modelContainer.mainContext) { shifts.activeShift }
         tracker = MileageTracker(recorder: recorder)
         autoDrive = AutoDriveDetectionManager(
             sources: [

@@ -7,6 +7,7 @@ final class Trip {
     var endedAt: Date?
     var distanceMeters: Double
     var triggerRawValue: String
+    var shift: Shift?
 
     @Relationship(deleteRule: .cascade, inverse: \TripPoint.trip)
     var points: [TripPoint] = []

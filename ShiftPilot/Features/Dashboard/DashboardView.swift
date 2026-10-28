@@ -6,6 +6,7 @@ struct DashboardView: View {
     @Environment(MileageTracker.self) private var tracker
     @Environment(PermissionsManager.self) private var permissions
     @Query(sort: \Trip.startedAt, order: .reverse) private var trips: [Trip]
+    @Query(sort: \Shift.startedAt, order: .reverse) private var shifts: [Shift]
     @AppStorage(DistanceUnit.storageKey) private var unit: DistanceUnit = .localeDefault
 
     var body: some View {
@@ -23,6 +24,10 @@ struct DashboardView: View {
                 }
 
                 Section {
+                    ShiftCard()
+                }
+
+                Section("Drive") {
                     StatusRow(
                         phase: autoDrive.state.phase,
                         distance: tracker.isTracking ? unit.format(meters: tracker.distanceMeters) : nil
@@ -35,41 +40,81 @@ struct DashboardView: View {
                 }
 
                 Section("Today") {
+                    let today = todayShifts.map { $0.snapshot() }
+                    let gross = today.reduce(Decimal(0)) { $0 + $1.gross }
+                    let seconds = today.reduce(0) { $0 + $1.duration }
+                    LabeledContent("Earnings", value: Format.money(gross))
+                    LabeledContent("True EPH", value: Format.rate(EarningsCalculator.hourlyRate(gross, over: seconds), per: "hr"))
                     LabeledContent("Distance", value: unit.format(meters: todayMeters))
                     LabeledContent("Trips", value: "\(todayTrips.count)")
                 }
 
+                if !shifts.isEmpty {
+                    Section {
+                        ForEach(shifts.prefix(3)) { shift in
+                            NavigationLink {
+                                ShiftDetailView(shift: shift)
+                            } label: {
+                                ShiftRow(shift: shift)
+                            }
+                        }
+                    } header: {
+                        SectionHeader(title: "Recent shifts") { ShiftListView() }
+                    }
+                }
+
                 Section {
-                    ForEach(trips.prefix(5)) { trip in
+                    ForEach(trips.prefix(3)) { trip in
                         TripRow(trip: trip)
                     }
                 } header: {
-                    HStack {
-                        Text("Recent trips")
-                        Spacer()
-                        NavigationLink("See all") { TripListView() }
-                            .font(.footnote)
-                    }
+                    SectionHeader(title: "Recent trips") { TripListView() }
                 }
             }
             .navigationTitle("ShiftPilot")
             .toolbar {
-                NavigationLink {
-                    SettingsView()
-                } label: {
-                    Image(systemName: "gearshape")
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    NavigationLink {
+                        EarningsInsightsView()
+                    } label: {
+                        Label("Insights", systemImage: "chart.bar.xaxis")
+                    }
+                    NavigationLink {
+                        SettingsView()
+                    } label: {
+                        Label("Settings", systemImage: "gearshape")
+                    }
                 }
             }
         }
     }
 
+    private var startOfToday: Date { Calendar.current.startOfDay(for: .now) }
+
+    private var todayShifts: [Shift] {
+        shifts.filter { $0.startedAt >= startOfToday || $0.isActive }
+    }
+
     private var todayTrips: [Trip] {
-        let startOfDay = Calendar.current.startOfDay(for: .now)
-        return trips.filter { $0.startedAt >= startOfDay }
+        trips.filter { $0.startedAt >= startOfToday }
     }
 
     private var todayMeters: Double {
         todayTrips.reduce(0) { $0 + $1.distanceMeters }
+    }
+}
+
+private struct SectionHeader<Destination: View>: View {
+    let title: String
+    @ViewBuilder let destination: () -> Destination
+
+    var body: some View {
+        HStack {
+            Text(title)
+            Spacer()
+            NavigationLink("See all", destination: destination)
+                .font(.footnote)
+        }
     }
 }
 
@@ -87,7 +132,7 @@ private struct TripControlButton: View {
                 Label(phase == .idle ? "Start trip" : "Start trip now", systemImage: "play.fill")
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.bordered)
             .tint(.green)
             .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
         case .driving, .ending:
@@ -135,7 +180,7 @@ private struct StatusRow: View {
     private var title: String {
         switch phase {
         case .idle: "Waiting for a drive"
-        case .candidate: "Possible drive"
+        case .candidate: "Checking for a drive…"
         case .driving: "Driving"
         case .ending: "Wrapping up trip"
         }
@@ -144,7 +189,7 @@ private struct StatusRow: View {
     private var subtitle: String {
         switch phase {
         case .idle: "Trips start automatically when you connect to your car or start driving."
-        case .candidate: "Confirming with GPS speed…"
+        case .candidate: "Motion suggests you're in a car. Confirming with GPS speed."
         case .driving: "Logging your trip"
         case .ending: "Trip ends after you've been parked a few minutes."
         }

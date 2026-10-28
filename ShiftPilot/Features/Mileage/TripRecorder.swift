@@ -8,6 +8,7 @@ import SwiftData
 @MainActor
 final class TripRecorder {
     private let context: ModelContext
+    private let currentShift: @MainActor () -> Shift?
     private var pending: (startedAt: Date, trigger: TripTrigger)?
     private var buffer: [(location: CLLocation, delta: Double)] = []
     private var trip: Trip?
@@ -15,8 +16,10 @@ final class TripRecorder {
 
     private let saveEvery = 20
 
-    init(context: ModelContext) {
+    /// - Parameter currentShift: the shift a newly confirmed trip should belong to.
+    init(context: ModelContext, currentShift: @escaping @MainActor () -> Shift? = { nil }) {
         self.context = context
+        self.currentShift = currentShift
     }
 
     func begin(trigger: TripTrigger, at date: Date) {
@@ -41,6 +44,7 @@ final class TripRecorder {
         guard trip == nil, let pending else { return }
         let trip = Trip(startedAt: pending.startedAt, trigger: pending.trigger)
         context.insert(trip)
+        trip.shift = currentShift()
         for (location, delta) in buffer {
             insertPoint(location, distanceDelta: delta, into: trip)
         }

@@ -10,6 +10,7 @@ struct ShiftPilotApp: App {
             DashboardView()
                 .environment(env.autoDrive)
                 .environment(env.tracker)
+                .environment(env.shifts)
                 .environment(env.permissions)
                 .environment(env.knownDevices)
                 .environment(env.bleMonitor)
