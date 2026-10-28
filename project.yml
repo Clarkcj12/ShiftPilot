@@ -1,0 +1,46 @@
+name: ShiftPilot
+options:
+  bundleIdPrefix: com.shiftpilot
+  deploymentTarget:
+    iOS: "27.2"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    CODE_SIGN_STYLE: Automatic
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  ShiftPilot:
+    type: application
+    platform: iOS
+    sources:
+      - ShiftPilot
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.shiftpilot.app
+        INFOPLIST_FILE: ShiftPilot/Resources/Info.plist
+        TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+  ShiftPilotTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - ShiftPilotTests
+    dependencies:
+      - target: ShiftPilot
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.shiftpilot.app.tests
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  ShiftPilot:
+    build:
+      targets:
+        ShiftPilot: all
+        ShiftPilotTests: [test]
+    test:
+      targets:
+        - ShiftPilotTests
