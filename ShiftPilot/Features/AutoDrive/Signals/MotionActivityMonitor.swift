@@ -49,6 +49,6 @@ extension MotionReading {
         case .medium: .medium
         default: .low
         }
-        self.init(isAutomotive: activity.automotive, confidence: confidence)
+        self.init(isAutomotive: activity.automotive, confidence: confidence, isStationary: activity.stationary)
     }
 }

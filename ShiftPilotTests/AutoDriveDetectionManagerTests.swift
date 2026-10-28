@@ -110,6 +110,46 @@ struct DriveDetectorTests {
         #expect(reduce(&state, .tick, at: 1181) == [.finishTrip])
     }
 
+    // MARK: False "possible drive" while not moving
+
+    @Test func stationaryAutomotiveReadingDoesNotStartCandidate() {
+        var state = DetectorState()
+        let parkedInCar = MotionReading(isAutomotive: true, confidence: .high, isStationary: true)
+        #expect(reduce(&state, .motion(parkedInCar), at: 0).isEmpty)
+        #expect(state.phase == .idle)
+    }
+
+    @Test func candidateDiscardedQuicklyWhenGPSShowsParked() {
+        var state = DetectorState()
+        _ = reduce(&state, .motion(automotive), at: 0)
+        _ = reduce(&state, .speed(metersPerSecond: 0), at: 5)
+        #expect(reduce(&state, .tick, at: 60).isEmpty)
+        #expect(reduce(&state, .tick, at: 66) == [.discardTrip])
+        #expect(state.phase == .idle)
+    }
+
+    @Test func stuckAutomotiveReadingCannotRestartCandidateAfterDiscard() {
+        var state = DetectorState()
+        _ = reduce(&state, .motion(automotive), at: 0)
+        _ = reduce(&state, .speed(metersPerSecond: 0), at: 0)
+        _ = reduce(&state, .tick, at: 61)
+        #expect(state.phase == .idle)
+
+        #expect(reduce(&state, .motion(automotive), at: 70).isEmpty)
+        #expect(state.phase == .idle)
+
+        _ = reduce(&state, .motion(stationary), at: 200)
+        #expect(reduce(&state, .motion(automotive), at: 300) == [.beginTrip(.motion)])
+    }
+
+    @Test func carConnectStillStartsTripAfterMotionDiscard() {
+        var state = DetectorState()
+        _ = reduce(&state, .motion(automotive), at: 0)
+        _ = reduce(&state, .speed(metersPerSecond: 0), at: 0)
+        _ = reduce(&state, .tick, at: 61)
+        #expect(reduce(&state, .carConnected(.carPlay), at: 70) == [.beginTrip(.carPlay), .confirmTrip])
+    }
+
     // MARK: Manual start/stop
 
     @Test func manualStartBeginsConfirmedTrip() {

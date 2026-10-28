@@ -9,6 +9,8 @@ struct DetectionConfig: Sendable {
     var confirmDuration: TimeInterval = 60
     /// A candidate that never reaches driving speed is discarded after this long.
     var candidateTimeout: TimeInterval = 300
+    /// A candidate whose GPS shows the phone parked is discarded after this long.
+    var candidateStillTimeout: TimeInterval = 60
     /// At or below this speed the car counts as parked (~2 mph).
     var stationarySpeed: Double = 0.9
     /// How long the car must be parked, with no car signal, before the trip ends.
@@ -48,6 +50,9 @@ struct DetectorState: Equatable, Sendable {
     /// Set by `manualStop` so the car signals still present don't immediately
     /// restart a trip. Cleared once those signals go away.
     var suppressAutoStart = false
+    /// Set when a motion candidate is discarded; motion must report non-automotive
+    /// before it can start another, so a stuck automotive reading can't loop.
+    var motionNeedsReset = false
     var candidateSince: Date?
     var fastSince: Date?
     var stillSince: Date?
@@ -125,8 +130,13 @@ enum DriveDetector {
 
         case .motion(let reading):
             state.isAutomotive = reading.isAutomotive && reading.confidence >= config.minimumMotionConfidence
+            if !state.isAutomotive {
+                state.motionNeedsReset = false
+            }
+            let canStartCandidate = state.isAutomotive && !reading.isStationary
+                && !state.suppressAutoStart && !state.motionNeedsReset
             switch state.phase {
-            case .idle where state.isAutomotive && !state.suppressAutoStart:
+            case .idle where canStartCandidate:
                 state.phase = .candidate
                 state.candidateSince = now
                 effects = [.beginTrip(.motion)]
@@ -142,6 +152,7 @@ enum DriveDetector {
             switch state.phase {
             case .candidate:
                 state.fastSince = speed >= config.drivingSpeed ? (state.fastSince ?? now) : nil
+                state.stillSince = speed <= config.stationarySpeed ? (state.stillSince ?? now) : nil
             case .driving, .ending:
                 state.stillSince = speed <= config.stationarySpeed ? (state.stillSince ?? now) : nil
             case .idle:
@@ -189,8 +200,11 @@ enum DriveDetector {
                 state.enterDriving()
                 return [.confirmTrip]
             }
-            if let candidateSince = state.candidateSince, now.timeIntervalSince(candidateSince) >= config.candidateTimeout {
+            let timedOut = state.candidateSince.map { now.timeIntervalSince($0) >= config.candidateTimeout } ?? false
+            let parked = state.stillSince.map { now.timeIntervalSince($0) >= config.candidateStillTimeout } ?? false
+            if timedOut || parked {
                 state.reset()
+                state.motionNeedsReset = state.isAutomotive
                 return [.discardTrip]
             }
         case .ending:

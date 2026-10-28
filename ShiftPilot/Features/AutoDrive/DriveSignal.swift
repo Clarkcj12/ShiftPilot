@@ -33,6 +33,9 @@ struct MotionReading: Sendable, Equatable {
 
     var isAutomotive: Bool
     var confidence: Confidence
+    /// CoreMotion reports automotive *and* stationary for a parked car or a phone
+    /// resting in a cup holder; that alone shouldn't suggest a drive.
+    var isStationary = false
 }
 
 /// A producer of drive signals (audio route, motion, BLE).
