@@ -86,9 +86,19 @@ struct VehicleDetailView: View {
             OdometerSection(vehicle: vehicle, units: units, isAddingReading: $isAddingReading)
 
             Section {
-                if vehicle != garage.current {
-                    Button("Use for new trips", systemImage: "checkmark.circle") {
-                        garage.makeCurrent(vehicle)
+                if vehicle.isRetired {
+                    Button("Put back in service", systemImage: "arrow.uturn.backward.circle") {
+                        garage.reinstate(vehicle)
+                    }
+                } else {
+                    if vehicle != garage.current {
+                        Button("Use for new trips", systemImage: "checkmark.circle") {
+                            garage.makeCurrent(vehicle)
+                        }
+                    }
+                    Button("Retire vehicle", systemImage: "archivebox") {
+                        garage.retire(vehicle)
+                        dismiss()
                     }
                 }
                 Button("Delete vehicle", systemImage: "trash", role: .destructive) {
@@ -96,13 +106,15 @@ struct VehicleDetailView: View {
                 }
                 .foregroundStyle(.red)
                 .confirmationDialog("Delete this vehicle?", isPresented: $isConfirmingDelete, titleVisibility: .visible) {
-                    Button("Delete vehicle", role: .destructive) {
+                    Button("Delete vehicle and its records", role: .destructive) {
                         deleteOnDisappear = true
                         dismiss()
                     }
                 } message: {
-                    Text("Its odometer readings are deleted. Trips stay in your trip log.")
+                    Text(deleteMessage)
                 }
+            } footer: {
+                Text("Sold or replaced this car? Retire it to keep its fill-ups, odometer readings and expenses for your tax records.")
             }
         }
         .keyboardDoneButton()
@@ -121,6 +133,14 @@ struct VehicleDetailView: View {
                 garage.save()
             }
         }
+    }
+
+    private var deleteMessage: String {
+        var lost: [String] = []
+        if !vehicle.fillUps.isEmpty { lost.append("\(vehicle.fillUps.count) fill-up\(vehicle.fillUps.count == 1 ? "" : "s")") }
+        if !vehicle.odometerReadings.isEmpty { lost.append("\(vehicle.odometerReadings.count) odometer reading\(vehicle.odometerReadings.count == 1 ? "" : "s")") }
+        let removed = lost.isEmpty ? "Its details are removed." : "This permanently deletes \(lost.formatted(.list(type: .and)))."
+        return removed + " Trips and expenses stay, without a vehicle. To keep everything, retire it instead."
     }
 
     private var yearText: Binding<String> {

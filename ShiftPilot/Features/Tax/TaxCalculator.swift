@@ -15,11 +15,14 @@ struct QuarterEstimate: Identifiable, Sendable {
     var gross: Decimal
     var businessMeters: Double
     var mileageDeduction: Decimal
+    /// Tolls, parking, loan interest and other costs deductible on top of mileage.
+    var otherDeductions: Decimal = 0
     var selfEmploymentTax: Decimal
     var incomeTax: Decimal
 
     var id: Int { quarter.id }
-    var netProfit: Decimal { gross - mileageDeduction }
+    var deductions: Decimal { mileageDeduction + otherDeductions }
+    var netProfit: Decimal { gross - deductions }
     /// What to set aside for this period. A loss period can't make an earlier one cheaper here.
     var setAside: Decimal { max(0, selfEmploymentTax + incomeTax) }
 }
@@ -31,7 +34,9 @@ struct TaxYearEstimate: Sendable {
     var gross: Decimal { quarters.reduce(0) { $0 + $1.gross } }
     var businessMeters: Double { quarters.reduce(0) { $0 + $1.businessMeters } }
     var mileageDeduction: Decimal { quarters.reduce(0) { $0 + $1.mileageDeduction } }
-    var netProfit: Decimal { gross - mileageDeduction }
+    var otherDeductions: Decimal { quarters.reduce(0) { $0 + $1.otherDeductions } }
+    var deductions: Decimal { mileageDeduction + otherDeductions }
+    var netProfit: Decimal { gross - deductions }
     var selfEmploymentTax: Decimal { quarters.reduce(0) { $0 + $1.selfEmploymentTax } }
     var incomeTax: Decimal { quarters.reduce(0) { $0 + $1.incomeTax } }
     var setAside: Decimal { quarters.reduce(0) { $0 + $1.setAside } }
@@ -54,6 +59,7 @@ enum TaxCalculator {
         year: Int,
         income: [TaxIncome],
         mileage: [TaxMileage],
+        deductions: [TaxIncome] = [],
         incomeTaxRate: Decimal,
         calendar: Calendar = .current
     ) -> TaxYearEstimate {
@@ -67,10 +73,11 @@ enum TaxCalculator {
             let trips = mileage.filter { interval.contains($0.date) }
             let meters = trips.reduce(0) { $0 + $1.meters }
             let deduction = round(trips.reduce(Decimal(0)) { $0 + deduction(for: $1, calendar: calendar) })
+            let other = round(deductions.filter { interval.contains($0.date) }.reduce(Decimal(0)) { $0 + $1.amount })
 
             // Tax is progressive through the year (the Social Security cap), so each period
             // gets the change in year-to-date tax rather than tax on its own profit.
-            cumulativeNet += gross - deduction
+            cumulativeNet += gross - deduction - other
             let se = selfEmploymentTax(onNetProfit: cumulativeNet, wageBase: wageBase)
             let incomeTax = max(0, cumulativeNet - se / 2) * incomeTaxRate
             defer { previous = (se, incomeTax) }
@@ -80,6 +87,7 @@ enum TaxCalculator {
                 gross: gross,
                 businessMeters: meters,
                 mileageDeduction: deduction,
+                otherDeductions: other,
                 selfEmploymentTax: round(se - previous.se),
                 incomeTax: round(incomeTax - previous.income)
             )

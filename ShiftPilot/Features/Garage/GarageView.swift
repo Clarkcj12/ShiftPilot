@@ -23,7 +23,7 @@ struct GarageView: View {
                 }
             } else {
                 Section {
-                    ForEach(vehicles) { vehicle in
+                    ForEach(vehicles.filter { !$0.isRetired }) { vehicle in
                         NavigationLink {
                             VehicleDetailView(vehicle: vehicle)
                         } label: {
@@ -33,6 +33,29 @@ struct GarageView: View {
                 } footer: {
                     Text("New trips are logged against the vehicle marked Current. Vehicle details stay on this iPhone.")
                 }
+
+                let retired = vehicles.filter(\.isRetired)
+                if !retired.isEmpty {
+                    Section("Retired") {
+                        ForEach(retired) { vehicle in
+                            NavigationLink {
+                                VehicleDetailView(vehicle: vehicle)
+                            } label: {
+                                VehicleRow(vehicle: vehicle, isCurrent: false)
+                            }
+                        }
+                    }
+                }
+            }
+
+            Section {
+                NavigationLink {
+                    ExpenseListView()
+                } label: {
+                    Label("Expenses", systemImage: "receipt")
+                }
+            } footer: {
+                Text("Tolls, parking, maintenance, insurance and other costs.")
             }
         }
         .navigationTitle("Garage")

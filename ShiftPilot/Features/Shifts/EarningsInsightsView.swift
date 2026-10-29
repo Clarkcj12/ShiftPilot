@@ -21,6 +21,7 @@ struct EarningsInsightsView: View {
 
     @Query(sort: \Shift.startedAt, order: .reverse) private var shifts: [Shift]
     @Environment(GarageStore.self) private var garage
+    @Query private var expenses: [Expense]
     @State private var period: Period = .month
 
     var body: some View {
@@ -46,19 +47,31 @@ struct EarningsInsightsView: View {
                         .listRowBackground(Color.clear)
                 }
             } else {
-                breakdownSections(snapshots: snapshots, gross: gross, seconds: seconds)
+                breakdownSections(snapshots: snapshots, gross: gross, seconds: seconds, periodCosts: periodCosts)
             }
         }
         .navigationTitle("Insights")
     }
 
+    /// Business share of expenses in the period that aren't tied to a shift (insurance,
+    /// phone, loan interest…); shift expenses are already in each shift's net.
+    private var periodCosts: Decimal {
+        expenses
+            .filter { expense in expense.shift == nil && (period.cutoff.map { expense.date >= $0 } ?? true) }
+            .reduce(0) { $0 + $1.snapshot.netProfitCost }
+    }
+
     @ViewBuilder
-    private func breakdownSections(snapshots: [ShiftSnapshot], gross: Decimal, seconds: TimeInterval) -> some View {
+    private func breakdownSections(snapshots: [ShiftSnapshot], gross: Decimal, seconds: TimeInterval, periodCosts: Decimal) -> some View {
         Section("Overall") {
             LabeledContent("True EPH", value: Format.rate(EarningsCalculator.hourlyRate(gross, over: seconds), per: "hr"))
             LabeledContent("Earnings", value: Format.money(gross))
-            if let net = NetProfit.total(snapshots) {
-                LabeledContent("Net profit", value: Format.money(net))
+            if let shiftNet = NetProfit.total(snapshots) {
+                let net = shiftNet - periodCosts
+                if periodCosts > 0 {
+                    LabeledContent("Other expenses", value: "−\(Format.money(TaxCalculator.round(periodCosts)))")
+                }
+                LabeledContent("Net profit", value: Format.money(TaxCalculator.round(net)))
                 LabeledContent("Net per hour", value: Format.rate(EarningsCalculator.hourlyRate(net, over: seconds), per: "hr"))
             }
             LabeledContent("Time on shift", value: Format.duration(seconds))

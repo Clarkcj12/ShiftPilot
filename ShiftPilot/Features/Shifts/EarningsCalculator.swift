@@ -14,6 +14,8 @@ struct ShiftSnapshot: Sendable {
     var distanceMeters: Double
     /// Fuel and wear for the shift's business trips; nil until a vehicle is set up.
     var vehicleCost: Decimal? = nil
+    /// Tolls, parking and other costs logged against the shift.
+    var expenses: Decimal = 0
 
     var duration: TimeInterval { max(0, end.timeIntervalSince(start)) }
     var gross: Decimal { payouts.reduce(0) { $0 + $1.amount } }
@@ -21,8 +23,8 @@ struct ShiftSnapshot: Sendable {
     /// True EPH: gross pay over the whole shift, including waiting time between orders.
     var hourlyRate: Decimal? { EarningsCalculator.hourlyRate(gross, over: duration) }
 
-    /// Gross minus fuel and wear.
-    var netProfit: Decimal? { vehicleCost.map { gross - $0 } }
+    /// Gross minus fuel, wear and shift expenses.
+    var netProfit: Decimal? { vehicleCost.map { gross - $0 - expenses } }
 
     /// Net profit over the whole shift.
     var netHourlyRate: Decimal? { netProfit.flatMap { EarningsCalculator.hourlyRate($0, over: duration) } }

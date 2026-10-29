@@ -6,12 +6,16 @@ struct TaxVaultView: View {
     @Query private var payouts: [Payout]
     @Query private var trips: [Trip]
     @Query(sort: \TaxPayment.paidAt) private var payments: [TaxPayment]
+    @Query private var expenses: [Expense]
     @AppStorage(TaxSettings.incomeTaxRateKey) private var incomeTaxPercent = TaxSettings.defaultIncomeTaxPercent
     @AppStorage(DistanceUnit.storageKey) private var unit: DistanceUnit = .localeDefault
     @State private var year = Calendar.current.component(.year, from: .now)
 
     var body: some View {
-        let estimate = TaxVault.estimate(year: year, payouts: payouts, trips: trips, incomeTaxPercent: incomeTaxPercent)
+        let estimate = TaxVault.estimate(year: year, payouts: payouts, trips: trips, expenses: expenses, incomeTaxPercent: incomeTaxPercent)
+        let unansweredExpenses = expenses.filter {
+            $0.businessUse == nil && $0.category.taxTreatment == .addedDeduction && Calendar.current.component(.year, from: $0.date) == year
+        }.count
         let paid = TaxVault.paid(payments, in: year)
         let paidTotal = paid.values.reduce(0, +)
         let needsReview = trips.filter { $0.purpose == nil && !$0.isActive && Calendar.current.component(.year, from: $0.startedAt) == year }.count
@@ -30,7 +34,7 @@ struct TaxVaultView: View {
                     HStack(alignment: .top) {
                         ShiftMetric(title: "Paid", value: Format.money(paidTotal))
                         ShiftMetric(title: "Remaining", value: Format.money(max(0, estimate.setAside - paidTotal)))
-                        ShiftMetric(title: "Deduction", value: Format.money(estimate.mileageDeduction))
+                        ShiftMetric(title: "Deductions", value: Format.money(estimate.deductions))
                     }
                 }
                 .padding(.vertical, 6)
@@ -44,6 +48,20 @@ struct TaxVaultView: View {
                         Label(
                             "\(needsReview) \(needsReview == 1 ? "trip isn't" : "trips aren't") counted until reviewed",
                             systemImage: "questionmark.circle.fill"
+                        )
+                        .foregroundStyle(.orange)
+                    }
+                }
+            }
+
+            if unansweredExpenses > 0 {
+                Section {
+                    NavigationLink {
+                        ExpenseListView()
+                    } label: {
+                        Label(
+                            "\(unansweredExpenses) \(unansweredExpenses == 1 ? "expense needs" : "expenses need") a business share",
+                            systemImage: "percent"
                         )
                         .foregroundStyle(.orange)
                     }
@@ -68,6 +86,11 @@ struct TaxVaultView: View {
                 LabeledContent("Earnings", value: Format.money(estimate.gross))
                 LabeledContent("Business distance", value: unit.format(meters: estimate.businessMeters))
                 LabeledContent("Mileage deduction", value: Format.money(estimate.mileageDeduction))
+                NavigationLink {
+                    ExpenseListView()
+                } label: {
+                    LabeledContent("Tolls, parking & other", value: Format.money(estimate.otherDeductions))
+                }
                 LabeledContent("Net profit", value: Format.money(estimate.netProfit))
                 LabeledContent("Self-employment tax", value: Format.money(estimate.selfEmploymentTax))
                 LabeledContent("Income tax (\(incomeTaxPercent)%)", value: Format.money(estimate.incomeTax))
@@ -155,7 +178,7 @@ enum TaxSettings {
     static let defaultIncomeTaxPercent = 12
     /// 2026 federal brackets.
     static let brackets = [0, 10, 12, 22, 24, 32, 35, 37]
-    static let disclaimer = "Estimates only, not tax advice. ShiftPilot uses the IRS standard mileage rate and a simplified income tax estimate without your standard deduction, credits or other income, so it usually sets aside a little more than you'll owe. Check with a tax professional or the IRS Form 1040-ES worksheet."
+    static let disclaimer = "Estimates only, not tax advice. ShiftPilot uses the IRS standard mileage rate plus business tolls, parking and the business share of loan interest, vehicle property tax, phone and supplies, and a simplified income tax estimate without your standard deduction, credits or other income, so it usually sets aside a little more than you'll owe. Check with a tax professional or the IRS Form 1040-ES worksheet."
 }
 
 /// Glue between SwiftData models and the pure `TaxCalculator`.
@@ -183,13 +206,14 @@ enum TaxVault {
         }
     }
 
-    static func estimate(year: Int, payouts: [Payout], trips: [Trip], incomeTaxPercent: Int) -> TaxYearEstimate {
+    static func estimate(year: Int, payouts: [Payout], trips: [Trip], expenses: [Expense] = [], incomeTaxPercent: Int) -> TaxYearEstimate {
         TaxCalculator.estimate(
             year: year,
             income: payouts.map { TaxIncome(amount: $0.amount, date: $0.receivedAt) },
             mileage: trips
                 .filter { $0.purpose == .business && !$0.isActive }
                 .map { TaxMileage(meters: $0.distanceMeters, date: $0.startedAt) },
+            deductions: expenses.map(\.snapshot).filter { $0.deductibleAmount > 0 }.map { TaxIncome(amount: $0.deductibleAmount, date: $0.date) },
             incomeTaxRate: Decimal(incomeTaxPercent) / 100
         )
     }

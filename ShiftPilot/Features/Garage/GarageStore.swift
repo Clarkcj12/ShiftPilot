@@ -34,6 +34,27 @@ final class GarageStore {
         return vehicle
     }
 
+    /// Stops using a vehicle but keeps its records.
+    func retire(_ vehicle: Vehicle) {
+        vehicle.isRetired = true
+        vehicle.isCurrent = false
+        if vehicle == current {
+            current = nil
+            if let next = activeVehicles().first(where: { $0 != vehicle }) {
+                makeCurrent(next)
+            }
+        }
+        save()
+    }
+
+    func reinstate(_ vehicle: Vehicle) {
+        vehicle.isRetired = false
+        if current == nil {
+            makeCurrent(vehicle)
+        }
+        save()
+    }
+
     func makeCurrent(_ vehicle: Vehicle) {
         for other in (try? context.fetch(FetchDescriptor<Vehicle>())) ?? [] {
             other.isCurrent = other == vehicle
@@ -48,7 +69,7 @@ final class GarageStore {
         save()
         if wasCurrent {
             current = nil
-            if let next = try? context.fetch(FetchDescriptor<Vehicle>(sortBy: [SortDescriptor(\.createdAt)])).first {
+            if let next = activeVehicles().first {
                 makeCurrent(next)
             }
         }
@@ -85,9 +106,31 @@ final class GarageStore {
         }
     }
 
+    private func activeVehicles() -> [Vehicle] {
+        ((try? context.fetch(FetchDescriptor<Vehicle>(sortBy: [SortDescriptor(\.createdAt)]))) ?? []).filter { !$0.isRetired }
+    }
+
     private func fetchCurrent() -> Vehicle? {
-        let vehicles = (try? context.fetch(FetchDescriptor<Vehicle>(sortBy: [SortDescriptor(\.createdAt)]))) ?? []
+        let vehicles = activeVehicles()
         return vehicles.first(where: \.isCurrent) ?? vehicles.first
+    }
+
+    // MARK: Expenses
+
+    func add(_ expense: Expense) {
+        context.insert(expense)
+        save()
+    }
+
+    func delete(_ expense: Expense) {
+        context.delete(expense)
+        save()
+    }
+
+    /// The shift whose time span contains `date`, for linking tolls and parking.
+    func shift(containing date: Date) -> Shift? {
+        let shifts = (try? context.fetch(FetchDescriptor<Shift>(predicate: #Predicate { $0.startedAt <= date }, sortBy: [SortDescriptor(\.startedAt, order: .reverse)]))) ?? []
+        return shifts.first { ($0.endedAt ?? .distantFuture) >= date }
     }
 
     /// Turns the old single vehicle profile into the first Garage vehicle.

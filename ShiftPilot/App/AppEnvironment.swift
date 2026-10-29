@@ -17,7 +17,7 @@ final class AppEnvironment {
 
     init() {
         do {
-            modelContainer = try ModelContainer(for: Trip.self, TripPoint.self, Shift.self, Payout.self, TaxPayment.self, Vehicle.self, OdometerReading.self, FillUp.self)
+            modelContainer = try ModelContainer(for: Trip.self, TripPoint.self, Shift.self, Payout.self, TaxPayment.self, Vehicle.self, OdometerReading.self, FillUp.self, Expense.self)
         } catch {
             fatalError("Could not create the trip store: \(error)")
         }
@@ -48,6 +48,11 @@ final class AppEnvironment {
 
     /// Called from `application(_:didFinishLaunchingWithOptions:)`, including background relaunches.
     func start() {
+        #if DEBUG
+        if SampleData.isRequested {
+            SampleData.seedIfEmpty(modelContainer.mainContext, garage: garage)
+        }
+        #endif
         recorder.closeAbandonedTrips()
         waker.start()
         autoDrive.start()

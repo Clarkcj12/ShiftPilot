@@ -27,6 +27,7 @@ struct TaxQuarterView: View {
                 LabeledContent("Earnings", value: Format.money(estimate.gross))
                 LabeledContent("Business distance", value: unit.format(meters: estimate.businessMeters))
                 LabeledContent("Mileage deduction", value: Format.money(estimate.mileageDeduction))
+                LabeledContent("Tolls, parking & other", value: Format.money(estimate.otherDeductions))
                 LabeledContent("Net profit", value: Format.money(estimate.netProfit))
                 LabeledContent("Self-employment tax", value: Format.money(estimate.selfEmploymentTax))
                 LabeledContent("Income tax", value: Format.money(estimate.incomeTax))

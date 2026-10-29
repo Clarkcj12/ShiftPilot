@@ -28,6 +28,8 @@ final class Vehicle {
 
     /// The vehicle new trips are logged against.
     var isCurrent: Bool = false
+    /// No longer driven; kept so its fill-ups, readings and expenses stay on record.
+    var isRetired: Bool = false
     var createdAt: Date = Date.now
 
     @Relationship(deleteRule: .cascade, inverse: \OdometerReading.vehicle)
@@ -38,6 +40,9 @@ final class Vehicle {
 
     @Relationship(deleteRule: .cascade, inverse: \FillUp.vehicle)
     var fillUps: [FillUp] = []
+
+    @Relationship(deleteRule: .nullify, inverse: \Expense.vehicle)
+    var expenses: [Expense] = []
 
     init(units: VehicleProfile.Units) {
         unitsRawValue = units.rawValue
@@ -100,6 +105,27 @@ final class Vehicle {
 
     var sortedReadings: [OdometerReading] {
         odometerReadings.sorted { $0.date < $1.date }
+    }
+
+    /// Business miles ÷ total odometer miles, as a suggested business-use share.
+    ///
+    /// Only compares the stretch of `year` the app was actually logging trips: odometer
+    /// readings from before the first trip would count miles the app never saw and make
+    /// the share look far too small. nil until two odometer values fall in that stretch.
+    func suggestedBusinessUse(in year: Int, calendar: Calendar = .current) -> Decimal? {
+        let yearTrips = trips.filter { calendar.component(.year, from: $0.startedAt) == year }
+        // From the start of the first trip's day, so a reading taken before that drive counts.
+        guard let firstTrip = yearTrips.map(\.startedAt).min() else { return nil }
+        let trackingStart = calendar.startOfDay(for: firstTrip)
+        let points = (odometerReadings.map { ($0.date, $0.value) } + fillUps.map { ($0.date, $0.odometer) })
+            .filter { calendar.component(.year, from: $0.0) == year && $0.0 >= trackingStart }
+            .sorted { $0.0 < $1.0 }
+        guard points.count > 1, let first = points.first, let last = points.last, last.1 > first.1 else { return nil }
+        let businessMeters = yearTrips
+            .filter { $0.purpose == .business && $0.startedAt >= first.0 && $0.startedAt <= last.0 }
+            .reduce(0) { $0 + $1.distanceMeters }
+        let business = Decimal(businessMeters / profile.units.metersPerDistance)
+        return TaxCalculator.round(min(1, business / (last.1 - first.1)))
     }
 
     /// Distance driven in `year` (in the vehicle's units) from odometer readings and

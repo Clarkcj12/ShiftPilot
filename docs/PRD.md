@@ -32,7 +32,7 @@ Give gig drivers an automated, zero-friction tool to track their true earnings, 
 | **Maintenance Alerts** | Tie tracked miles to a service schedule (e.g. "5,000 gig miles: schedule oil change"). | ⏳ Not started |
 | **Dead Mile Triage** | Swipe a completed trip segment to flag it as a Dead Mile (returning with no order); visualize unprofitable return zones on a map. | ⏳ Not started |
 
-| **Garage** | Vehicles with VIN, plate, registration and insurance; odometer log; fill-ups and vehicle expenses. | 🚧 Step 1 shipped: multiple vehicles, VIN decode (NHTSA vPIC, VIN only, no key), plate/registration/insurance with expiry warnings, odometer readings, running costs per vehicle, trips linked to a vehicle. Step 2 shipped: fill-up log (odometer, volume, total cost, full/partial) measuring full-to-full MPG or L/100 km over the last 5 tanks; latest pump price and measured economy replace the estimates for net profit. Next: expenses. |
+| **Garage** | Vehicles with VIN, plate, registration and insurance; odometer log; fill-ups and vehicle expenses. | 🚧 Step 1 shipped: multiple vehicles, VIN decode (NHTSA vPIC, VIN only, no key), plate/registration/insurance with expiry warnings, odometer readings, running costs per vehicle, trips linked to a vehicle. Step 2 shipped: fill-up log (odometer, volume, total cost, full/partial) measuring full-to-full MPG or L/100 km over the last 5 tanks; latest pump price and measured economy replace the estimates for net profit. Step 3 shipped: expenses with per-category tax treatment (added to deductions / covered by the mileage rate / never deductible), business share (toggle or percentage, never assumed 100%; suggested from tracked business miles ÷ odometer miles), shift-linked tolls and parking, and Retire vehicle to keep records. Next: receipt scanner. |
 
 Also shipped (not in the original PRD): a Miles/Kilometers display setting.
 
@@ -73,8 +73,23 @@ Live local prices need a third-party provider, which usually requires a paid API
 4. **Garage**, replacing a standalone scanner and maintenance feature:
    1. ~~Vehicle profiles, VIN, plate, insurance, odometer.~~ Done.
    2. ~~Fill-up log~~ Done: real MPG and price per gallon feeding net profit. Fall back to EIA weekly state/regional average prices (free key) for drivers who don't log fill-ups.
-   3. Vehicle expenses with tax treatment. Tolls and parking are deductible on top of the standard mileage rate; fuel, maintenance and insurance are already covered by it (count them only under the actual-expense method).
+   3. ~~Vehicle expenses with tax treatment.~~ Done. Tolls and parking are deductible on top of the standard mileage rate; fuel, maintenance and insurance are already covered by it (count them only under the actual-expense method).
    4. **AI Expense Scanner** (Vision text recognition) creating expenses from receipt photos.
 5. **Maintenance Alerts** (odometer offset, service intervals, local notifications).
 6. **Dead Mile Triage** (trip segments and a MapKit visualization).
 7. **CarPlay Dashboard.** The code can be written any time, but it can't run in a car until Apple grants the entitlement.
+
+## 8. Before public release
+
+Not blocking features, but required before TestFlight / App Store:
+
+- [ ] **Privacy manifest** (`PrivacyInfo.xcprivacy`). `UserDefaults` (used by `@AppStorage`) is a required-reason API. App Privacy label: "Data Not Collected" while everything stays on device; the only network call is the VIN lookup (VIN sent to NHTSA).
+- [ ] **SwiftData `VersionedSchema` + migration plan** as the baseline, so future model changes don't lose users' data.
+- [ ] **Recoverable store error**: replace the `fatalError` when the store can't open with an error screen (and an export path).
+- [ ] **Delete all data** and **export** (CSV of trips, payouts, expenses, fill-ups; receipts later). IRS records are generally kept for 3 years.
+- [ ] **Tax tables** in `TaxTables.swift` updated each December (and on mid-year IRS changes); consider remote-updatable tables.
+- [ ] **Accessibility pass**: Dynamic Type at the largest sizes, VoiceOver labels, color never the only signal.
+- [ ] **Navigation**: move from dashboard toolbar icons to a `TabView` (Dashboard, Trips, Taxes, Garage, Settings) as features grow.
+- [ ] **Receipt photos** (when added): `PhotosPicker` (no permission) / VisionKit scanner (`NSCameraUsageDescription`), external storage, strip EXIF/GPS.
+- [ ] **Sample data** for screenshots: launch a Debug build with `-seedSampleData` on an empty install.
+

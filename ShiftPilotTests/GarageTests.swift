@@ -31,7 +31,7 @@ struct VINDecoderTests {
 struct GarageStoreTests {
     private func makeContext() throws -> ModelContext {
         let container = try ModelContainer(
-            for: Trip.self, TripPoint.self, Shift.self, Payout.self, Vehicle.self, OdometerReading.self, FillUp.self,
+            for: Trip.self, TripPoint.self, Shift.self, Payout.self, Vehicle.self, OdometerReading.self, FillUp.self, Expense.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true)
         )
         return ModelContext(container)

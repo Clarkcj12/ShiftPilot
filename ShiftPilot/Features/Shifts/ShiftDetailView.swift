@@ -9,6 +9,8 @@ struct ShiftDetailView: View {
     @AppStorage(DistanceUnit.storageKey) private var unit: DistanceUnit = .localeDefault
     @State private var isAddingPayout = false
     @State private var editingPayout: Payout?
+    @State private var isAddingExpense = false
+    @State private var editingExpense: Expense?
     @State private var isConfirmingEnd = false
     @State private var isConfirmingDelete = false
     /// Deleted once the view is gone, so it never renders a deleted model.
@@ -68,6 +70,26 @@ struct ShiftDetailView: View {
                 }
             }
 
+            Section {
+                ForEach(shift.expenses.sorted { $0.date > $1.date }) { expense in
+                    Button {
+                        editingExpense = expense
+                    } label: {
+                        ExpenseRow(expense: expense).contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                }
+                Button("Add tolls, parking or other", systemImage: "plus") {
+                    isAddingExpense = true
+                }
+            } header: {
+                Text("Expenses")
+            } footer: {
+                if !shift.expenses.isEmpty {
+                    Text("Business tolls and parking are deducted on top of your mileage and lower this shift's net profit.")
+                }
+            }
+
             if !trips.isEmpty {
                 Section("Trips") {
                     ForEach(trips) { TripLink(trip: $0) }
@@ -102,6 +124,12 @@ struct ShiftDetailView: View {
         }
         .sheet(item: $editingPayout) { payout in
             AddPayoutView(shift: shift, payout: payout)
+        }
+        .sheet(isPresented: $isAddingExpense) {
+            ExpenseEditorView(shift: shift)
+        }
+        .sheet(item: $editingExpense) { expense in
+            ExpenseEditorView(expense: expense)
         }
         .onDisappear {
             if deleteOnDisappear {

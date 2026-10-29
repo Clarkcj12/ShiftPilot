@@ -6,14 +6,16 @@ struct DecimalField: View {
     let placeholder: String
     @Binding var value: Decimal?
     var isCurrency = false
+    var autoFocus = false
 
     @State private var text = ""
     @FocusState private var isFocused: Bool
 
-    init(_ placeholder: String, value: Binding<Decimal?>, isCurrency: Bool = false) {
+    init(_ placeholder: String, value: Binding<Decimal?>, isCurrency: Bool = false, autoFocus: Bool = false) {
         self.placeholder = placeholder
         _value = value
         self.isCurrency = isCurrency
+        self.autoFocus = autoFocus
     }
 
     var body: some View {
@@ -34,6 +36,12 @@ struct DecimalField: View {
         .onTapGesture { isFocused = true }
         .onAppear {
             text = value.map { $0.formatted(.number.grouping(.never)) } ?? ""
+        }
+        .task {
+            guard autoFocus else { return }
+            // Focusing before a sheet finishes presenting is ignored.
+            try? await Task.sleep(for: .milliseconds(400))
+            isFocused = true
         }
         .onChange(of: text) { _, newText in
             value = newText.isEmpty ? nil : Decimal(string: newText, locale: .current)

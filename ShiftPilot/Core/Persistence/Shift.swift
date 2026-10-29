@@ -34,6 +34,10 @@ final class Shift {
     @Relationship(deleteRule: .nullify, inverse: \Trip.shift)
     var trips: [Trip] = []
 
+    /// Tolls, parking and similar costs from this shift.
+    @Relationship(deleteRule: .nullify, inverse: \Expense.shift)
+    var expenses: [Expense] = []
+
     init(startedAt: Date) {
         self.startedAt = startedAt
     }
@@ -50,7 +54,8 @@ final class Shift {
             payouts: payouts.map { PayoutSnapshot(platform: $0.platform, amount: $0.amount, receivedAt: $0.receivedAt) },
             distanceMeters: business.reduce(0) { $0 + $1.distanceMeters },
             // Unknown if any trip's cost is unknown, rather than quietly undercounting.
-            vehicleCost: costs.contains(nil) ? nil : costs.reduce(Decimal(0)) { $0 + ($1 ?? 0) }
+            vehicleCost: costs.contains(nil) ? nil : costs.reduce(Decimal(0)) { $0 + ($1 ?? 0) },
+            expenses: expenses.reduce(Decimal(0)) { $0 + $1.snapshot.netProfitCost }
         )
     }
 }
