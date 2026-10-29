@@ -83,6 +83,7 @@ Live local prices need a third-party provider, which usually requires a paid API
 
 Not blocking features, but required before TestFlight / App Store:
 
+- **EIA API key:** the key ships inside the app binary (from the gitignored `Config/Secrets.xcconfig`). Fine for free public data, but if rate limits bite, move the fetch behind a small proxy. Release builds need the key set or regional prices are off.
 - [ ] **Privacy manifest** (`PrivacyInfo.xcprivacy`). `UserDefaults` (used by `@AppStorage`) is a required-reason API. App Privacy label: "Data Not Collected" while everything stays on device; the only network call is the VIN lookup (VIN sent to NHTSA).
 - [ ] **SwiftData `VersionedSchema` + migration plan** as the baseline, so future model changes don't lose users' data.
 - [ ] **Recoverable store error**: replace the `fatalError` when the store can't open with an error screen (and an export path).

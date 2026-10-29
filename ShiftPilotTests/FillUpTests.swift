@@ -51,13 +51,13 @@ struct FuelEconomyTests {
         let car = Vehicle(units: .us)
         car.fuelEconomy = 22
         car.fuelPrice = 4
-        #expect(car.effectiveProfile.fuelEconomy == 22)
+        #expect(car.effectiveProfile(regional: nil).fuelEconomy == 22)
 
         for (odometer, cost) in [(Decimal(1000), Decimal(30)), (1300, 30)] {
             car.fillUps.append(FillUp(date: .now, odometer: odometer, volume: 10, totalCost: cost))
         }
-        #expect(car.effectiveProfile.fuelEconomy == 30)
-        #expect(car.effectiveProfile.fuelPrice == 3)
+        #expect(car.effectiveProfile(regional: nil).fuelEconomy == 30)
+        #expect(car.effectiveProfile(regional: nil).fuelPrice == 3)
         // What the driver typed is kept as the fallback.
         #expect(car.profile.fuelEconomy == 22)
     }

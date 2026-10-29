@@ -30,7 +30,7 @@ struct NetProfitSection: View {
                 NavigationLink {
                     VehicleDetailView(vehicle: vehicle)
                 } label: {
-                    Label(Self.missingCostPrompt(vehicle.effectiveProfile), systemImage: "fuelpump.fill")
+                    Label(Self.missingCostPrompt(garage.effectiveProfile(for: vehicle)), systemImage: "fuelpump.fill")
                 }
             } else {
                 NavigationLink {

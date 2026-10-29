@@ -27,12 +27,13 @@ final class AppEnvironment {
         bleMonitor = BLEAccessoryMonitor(devices: knownDevices)
         let shifts = ShiftManager(context: modelContainer.mainContext)
         self.shifts = shifts
-        let garage = GarageStore(context: modelContainer.mainContext)
+        let garage = GarageStore(context: modelContainer.mainContext, fuelPrices: FuelPriceStore())
         self.garage = garage
         recorder = TripRecorder(
             context: modelContainer.mainContext,
             currentShift: { shifts.activeShift },
-            currentVehicle: { garage.current }
+            currentVehicle: { garage.current },
+            vehicleCost: { garage.effectiveProfile(for: $0).costPerMeter }
         )
         tracker = MileageTracker(recorder: recorder)
         autoDrive = AutoDriveDetectionManager(

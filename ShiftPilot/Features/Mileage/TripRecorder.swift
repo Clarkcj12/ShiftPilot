@@ -10,6 +10,8 @@ final class TripRecorder {
     private let context: ModelContext
     private let currentShift: @MainActor () -> Shift?
     private let currentVehicle: @MainActor () -> Vehicle?
+    /// Fuel + wear per meter captured on each new trip.
+    private let vehicleCost: @MainActor (Vehicle) -> Decimal?
     private var pending: (startedAt: Date, trigger: TripTrigger)?
     private var buffer: [(location: CLLocation, delta: Double)] = []
     private var trip: Trip?
@@ -25,8 +27,10 @@ final class TripRecorder {
     init(
         context: ModelContext,
         currentShift: @escaping @MainActor () -> Shift? = { nil },
-        currentVehicle: @escaping @MainActor () -> Vehicle? = { nil }
+        currentVehicle: @escaping @MainActor () -> Vehicle? = { nil },
+        vehicleCost: @escaping @MainActor (Vehicle) -> Decimal? = { $0.effectiveProfile(regional: nil).costPerMeter }
     ) {
+        self.vehicleCost = vehicleCost
         self.context = context
         self.currentShift = currentShift
         self.currentVehicle = currentVehicle
@@ -56,7 +60,7 @@ final class TripRecorder {
         context.insert(trip)
         if let vehicle = currentVehicle() {
             trip.vehicle = vehicle
-            trip.vehicleCostPerMeter = vehicle.effectiveProfile.costPerMeter
+            trip.vehicleCostPerMeter = vehicleCost(vehicle)
         }
         if let shift = currentShift() {
             trip.shift = shift

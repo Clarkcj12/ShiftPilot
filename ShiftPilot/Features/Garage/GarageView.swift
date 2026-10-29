@@ -78,8 +78,10 @@ private struct VehicleRow: View {
     let vehicle: Vehicle
     let isCurrent: Bool
 
+    @Environment(GarageStore.self) private var garage
+
     var body: some View {
-        let profile = vehicle.effectiveProfile
+        let profile = garage.effectiveProfile(for: vehicle)
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text(vehicle.displayName).font(.headline)

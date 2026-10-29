@@ -76,18 +76,30 @@ final class Vehicle {
         }
     }
 
-    /// Running costs actually used: measured economy and the latest fill-up price when
-    /// there are enough fill-ups, otherwise what the driver entered.
-    var effectiveProfile: VehicleProfile {
+    /// Running costs actually used: measured economy when there are enough fill-ups, and
+    /// the fuel price from `fuelPriceSource(regional:)`. Everything that shows or captures a
+    /// cost goes through here (via `GarageStore.effectiveProfile(for:)`) so screens agree.
+    func effectiveProfile(regional: RegionalFuelPrice?) -> VehicleProfile {
         var profile = profile
-        let snapshots = fillUps.map(\.snapshot)
         if let measured = measuredEconomy {
             profile.fuelEconomy = measured.value
         }
-        if let latest = FuelEconomyCalculator.latestPrice(snapshots) {
-            profile.fuelPrice = latest.price
-        }
+        profile.fuelPrice = fuelPriceSource(regional: regional).price
         return profile
+    }
+
+    /// Latest fill-up, then the price the driver entered, then the regional average.
+    func fuelPriceSource(regional: RegionalFuelPrice?) -> FuelPriceSource {
+        if let latest = FuelEconomyCalculator.latestPrice(fillUps.map(\.snapshot)) {
+            return .fillUp(latest.price, latest.date)
+        }
+        if let entered = profile.fuelPrice, entered > 0 {
+            return .entered(entered)
+        }
+        if let regional {
+            return .regional(regional.price(per: profile.units), regional)
+        }
+        return .none
     }
 
     var measuredEconomy: MeasuredEconomy? {
@@ -150,5 +162,20 @@ final class OdometerReading {
     init(date: Date, value: Decimal) {
         self.date = date
         self.value = value
+    }
+}
+
+/// Where a vehicle's fuel price comes from.
+enum FuelPriceSource: Equatable {
+    case fillUp(Decimal, Date)
+    case entered(Decimal)
+    case regional(Decimal, RegionalFuelPrice)
+    case none
+
+    var price: Decimal? {
+        switch self {
+        case .fillUp(let price, _), .entered(let price), .regional(let price, _): price
+        case .none: nil
+        }
     }
 }

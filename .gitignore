@@ -9,3 +9,6 @@ build/
 .build/
 *.xcresult
 .DS_Store
+
+# Local secrets
+Config/Secrets.xcconfig

@@ -37,7 +37,7 @@ enum SampleData {
             garage.addFillUp(FillUp(date: day(offset, 8), odometer: Decimal(odometer), volume: Decimal(gallons), totalCost: Decimal(cost)), to: car)
         }
 
-        let costPerMeter = car.effectiveProfile.costPerMeter
+        let costPerMeter = garage.effectiveProfile(for: car).costPerMeter
         let shiftPlans: [(day: Int, start: Int, hours: Int, payouts: [(GigPlatform, Double)], miles: Double)] = [
             (-3, 11, 4, [(.doorDash, 9.5), (.doorDash, 12.25), (.uberEats, 8.75), (.doorDash, 15.0)], 38),
             (-2, 17, 5, [(.uber, 18.4), (.uber, 22.1), (.lyft, 14.6), (.uber, 26.3), (.uberEats, 11.2)], 61),

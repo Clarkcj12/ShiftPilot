@@ -12,15 +12,35 @@ final class GarageStore {
     private(set) var current: Vehicle?
 
     @ObservationIgnored private let context: ModelContext
+    @ObservationIgnored let fuelPrices: FuelPriceStore
 
-    init(context: ModelContext, defaults: UserDefaults = .standard) {
+    init(context: ModelContext, defaults: UserDefaults = .standard, fuelPrices: FuelPriceStore? = nil) {
         self.context = context
+        self.fuelPrices = fuelPrices ?? FuelPriceStore(defaults: defaults, apiKey: nil)
         migrateLegacyProfile(defaults: defaults)
         current = fetchCurrent()
     }
 
     /// Fuel + wear per meter for the current vehicle, or nil until it's set up.
-    var costPerMeter: Decimal? { current?.effectiveProfile.costPerMeter }
+    var costPerMeter: Decimal? { current.flatMap { effectiveProfile(for: $0).costPerMeter } }
+
+    /// The regional average for this vehicle's plate state, if one has been fetched.
+    func regionalFuelPrice(for vehicle: Vehicle) -> RegionalFuelPrice? {
+        fuelPrices.price(forState: vehicle.plateRegion)
+    }
+
+    func effectiveProfile(for vehicle: Vehicle) -> VehicleProfile {
+        vehicle.effectiveProfile(regional: regionalFuelPrice(for: vehicle))
+    }
+
+    func fuelPriceSource(for vehicle: Vehicle) -> FuelPriceSource {
+        vehicle.fuelPriceSource(regional: regionalFuelPrice(for: vehicle))
+    }
+
+    /// Fetches the regional average for the current vehicle's state (at most daily).
+    func refreshFuelPrice() async {
+        await fuelPrices.refreshIfNeeded(state: current?.plateRegion)
+    }
 
     @discardableResult
     func addVehicle(units: VehicleProfile.Units) -> Vehicle {

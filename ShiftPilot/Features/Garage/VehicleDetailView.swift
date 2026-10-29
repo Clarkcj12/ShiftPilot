@@ -15,7 +15,8 @@ struct VehicleDetailView: View {
 
     var body: some View {
         let profile = vehicle.profile
-        let effective = vehicle.effectiveProfile
+        let effective = garage.effectiveProfile(for: vehicle)
+        let priceSource = garage.fuelPriceSource(for: vehicle)
         let units = profile.units
 
         Form {
@@ -70,7 +71,12 @@ struct VehicleDetailView: View {
                     DecimalField(units == .us ? "e.g. 28" : "e.g. 8.5", value: $vehicle.profile.fuelEconomy)
                 }
                 LabeledContent("Price per \(units.volume)") {
-                    DecimalField("0.00", value: $vehicle.profile.fuelPrice, isCurrency: true)
+                    DecimalField(pricePlaceholder(priceSource), value: $vehicle.profile.fuelPrice, isCurrency: true)
+                }
+                if let note = priceNote(priceSource, units: units) {
+                    Text(note)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
                 LabeledContent("Wear & tear per \(units.distance)") {
                     DecimalField("0.00", value: $vehicle.profile.wearPerDistance, isCurrency: true)
@@ -120,6 +126,11 @@ struct VehicleDetailView: View {
         .keyboardDoneButton()
         .navigationTitle(vehicle.displayName)
         .navigationBarTitleDisplayMode(.inline)
+        .task(id: vehicle.plateRegion) {
+            if vehicle == garage.current {
+                await garage.refreshFuelPrice()
+            }
+        }
         .sheet(isPresented: $isLoggingFillUp) {
             FillUpEditorView(vehicle: vehicle)
         }
@@ -148,6 +159,26 @@ struct VehicleDetailView: View {
             vehicle.year.map(String.init) ?? ""
         } set: { text in
             vehicle.year = Int(text.filter(\.isNumber).prefix(4))
+        }
+    }
+
+    /// Shows the price in use as the placeholder, so an empty field doesn't look like $0.
+    private func pricePlaceholder(_ source: FuelPriceSource) -> String {
+        switch source {
+        case .fillUp(let price, _), .regional(let price, _): Format.fuelPrice(price)
+        case .entered, .none: "0.00"
+        }
+    }
+
+    private func priceNote(_ source: FuelPriceSource, units: VehicleProfile.Units) -> String? {
+        switch source {
+        case .fillUp(_, let date):
+            return "From your fill-up on \(date.formatted(date: .abbreviated, time: .omitted))."
+        case .regional(let price, let regional):
+            let week = regional.weekOf.formatted(.dateTime.month(.abbreviated).day())
+            return "Using the \(regional.areaName) average for regular, \(Format.fuelPrice(price))/\(units.volume), week of \(week) (U.S. EIA). Enter your own price or log a fill-up to replace it."
+        case .entered, .none:
+            return nil
         }
     }
 
