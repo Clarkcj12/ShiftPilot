@@ -71,7 +71,8 @@ private struct ActiveShiftCard: View {
                     Button {
                         isAddingPayout = true
                     } label: {
-                        Label("Add payout", systemImage: "plus")
+                        Label("Payout", systemImage: "plus")
+                            .foregroundStyle(.white)
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
@@ -80,6 +81,7 @@ private struct ActiveShiftCard: View {
                         isConfirmingEnd = true
                     } label: {
                         Label("End shift", systemImage: "stop.fill")
+                            .foregroundStyle(.red)
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
