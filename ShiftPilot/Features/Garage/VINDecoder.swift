@@ -13,11 +13,13 @@ enum VINDecoder {
     enum DecodeError: LocalizedError {
         case invalidFormat
         case notFound
+        case serviceUnavailable
 
         var errorDescription: String? {
             switch self {
             case .invalidFormat: "A VIN is 17 letters and numbers, without I, O or Q."
             case .notFound: "NHTSA couldn't find that VIN. Check it against your registration or the driver's door sticker."
+            case .serviceUnavailable: "NHTSA's VIN service isn't responding right now. Try again in a minute, or enter the year, make and model yourself."
             }
         }
     }
@@ -46,8 +48,18 @@ enum VINDecoder {
         let vin = normalize(rawVIN)
         guard isWellFormed(vin) else { throw DecodeError.invalidFormat }
         let url = URL(string: "https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVinValues/\(vin)?format=json")!
-        let (data, _) = try await session.data(from: url)
-        return try parse(data)
+        // NHTSA's servers occasionally return 503 for a moment; retry once before giving up.
+        for attempt in 0..<2 {
+            let (data, response) = try await session.data(from: url)
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 200
+            if (200..<300).contains(status) {
+                return try parse(data)
+            }
+            Log.persistence.error("VIN lookup returned HTTP \(status)")
+            guard status >= 500, attempt == 0 else { break }
+            try await Task.sleep(for: .seconds(1))
+        }
+        throw DecodeError.serviceUnavailable
     }
 
     static func parse(_ data: Data) throws -> DecodedVehicle {
@@ -60,7 +72,7 @@ enum VINDecoder {
             }
             var Results: [Result]
         }
-        guard let result = try JSONDecoder().decode(Response.self, from: data).Results.first,
+        guard let result = (try? JSONDecoder().decode(Response.self, from: data))?.Results.first,
               let make = result.Make, !make.isEmpty else {
             throw DecodeError.notFound
         }
