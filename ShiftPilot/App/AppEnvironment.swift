@@ -16,7 +16,7 @@ final class AppEnvironment {
 
     init() {
         do {
-            modelContainer = try ModelContainer(for: Trip.self, TripPoint.self, Shift.self, Payout.self)
+            modelContainer = try ModelContainer(for: Trip.self, TripPoint.self, Shift.self, Payout.self, TaxPayment.self)
         } catch {
             fatalError("Could not create the trip store: \(error)")
         }

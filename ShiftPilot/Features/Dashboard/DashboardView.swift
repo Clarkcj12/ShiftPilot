@@ -46,6 +46,7 @@ struct DashboardView: View {
                     LabeledContent("Earnings", value: Format.money(gross))
                     LabeledContent("True EPH", value: Format.rate(EarningsCalculator.hourlyRate(gross, over: seconds), per: "hr"))
                     LabeledContent("Distance", value: unit.format(meters: todayMeters))
+                    LabeledContent("Mileage deduction", value: Format.money(todayDeduction))
                     LabeledContent("Trips", value: "\(todayTrips.count)")
                 }
 
@@ -87,6 +88,11 @@ struct DashboardView: View {
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     NavigationLink {
+                        TaxVaultView()
+                    } label: {
+                        Label("Taxes", systemImage: "building.columns")
+                    }
+                    NavigationLink {
                         EarningsInsightsView()
                     } label: {
                         Label("Insights", systemImage: "chart.bar.xaxis")
@@ -113,6 +119,13 @@ struct DashboardView: View {
 
     private var todayMeters: Double {
         todayTrips.reduce(0) { $0 + $1.distanceMeters }
+    }
+
+    private var todayDeduction: Decimal {
+        let business = todayTrips
+            .filter { $0.purpose == .business }
+            .map { TaxMileage(meters: $0.distanceMeters, date: $0.startedAt) }
+        return TaxCalculator.round(business.reduce(0) { $0 + TaxCalculator.deduction(for: $1) })
     }
 }
 

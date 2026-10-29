@@ -21,7 +21,7 @@ Give gig drivers an automated, zero-friction tool to track their true earnings, 
 | **Auto-Drive Detection** | Detect the car connection and start logging background GPS immediately. | ✅ Shipped. Uses the audio route, an optional BLE accessory and motion; see note A. Manual start/stop is also shipped. |
 | **CarPlay Dashboard** | Distraction-free view of shift time, active miles and live deduction estimate. | ⏳ Not started. Needs an Apple entitlement; see note B. |
 | **Multi-App Shift Tracking** | Log gross payouts tagged by platform; compute True EPH from active tracking time. | ✅ Shipped. Shifts, payouts by platform, live True EPH on the dashboard, and an Insights screen with EPH by platform and time of day. Trips recorded during a shift link to it automatically. |
-| **IRS Tax Calculator & Vault** | Deductions at the IRS standard mileage rate, rolled up into a Quarterly Tax Vault. | ⏳ Not started. See note C. |
+| **IRS Tax Calculator & Vault** | Deductions at the IRS standard mileage rate, rolled up into a Quarterly Tax Vault. | ✅ Shipped. Business trips × the rate in effect on each trip's date (2026: 72.5¢ Jan–Jun, 76¢ from Jul 1). Estimated self-employment and income tax per IRS period, due dates, and recorded payments. Trips are classified business/personal (automatic during a shift). See note C. |
 
 ## 4. Value-add features
 
@@ -66,7 +66,7 @@ Live local prices need a third-party provider, which usually requires a paid API
 ## 7. Suggested build order
 
 1. ~~**Shifts and earnings.**~~ Done.
-2. **IRS Tax Calculator & Quarterly Vault**, using the bundled rate table.
+2. ~~**IRS Tax Calculator & Quarterly Vault**~~ Done. Rates live in `TaxTables.swift`; update it each December.
 3. **Net Profit Engine**, starting with user-entered gas price and MPG.
 4. **AI Expense Scanner** (Vision text recognition and an `Expense` model).
 5. **Maintenance Alerts** (odometer offset, service intervals, local notifications).
