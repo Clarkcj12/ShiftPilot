@@ -77,11 +77,20 @@ struct ShiftDetailView: View {
                         isConfirmingEnd = true
                     }
                     .foregroundStyle(.red)
+                    .endShiftDialog(shift: shift, isPresented: $isConfirmingEnd, isAddingPayout: $isAddingPayout)
                 }
                 Button("Delete shift", systemImage: "trash", role: .destructive) {
                     isConfirmingDelete = true
                 }
                 .foregroundStyle(.red)
+                .confirmationDialog("Delete this shift?", isPresented: $isConfirmingDelete, titleVisibility: .visible) {
+                    Button("Delete shift", role: .destructive) {
+                        deleteOnDisappear = true
+                        dismiss()
+                    }
+                } message: {
+                    Text("Its payouts are deleted too. Trips stay in your trip log.")
+                }
             }
         }
         .navigationTitle(shift.startedAt.formatted(.dateTime.weekday(.wide).month().day()))
@@ -90,15 +99,6 @@ struct ShiftDetailView: View {
         }
         .sheet(item: $editingPayout) { payout in
             AddPayoutView(shift: shift, payout: payout)
-        }
-        .endShiftDialog(shift: shift, isPresented: $isConfirmingEnd, isAddingPayout: $isAddingPayout)
-        .confirmationDialog("Delete this shift?", isPresented: $isConfirmingDelete, titleVisibility: .visible) {
-            Button("Delete shift", role: .destructive) {
-                deleteOnDisappear = true
-                dismiss()
-            }
-        } message: {
-            Text("Its payouts are deleted too. Trips stay in your trip log.")
         }
         .onDisappear {
             if deleteOnDisappear {

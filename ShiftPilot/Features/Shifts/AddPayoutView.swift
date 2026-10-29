@@ -61,6 +61,12 @@ struct AddPayoutView: View {
                             isConfirmingDelete = true
                         }
                         .foregroundStyle(.red)
+                        .confirmationDialog("Delete this payout?", isPresented: $isConfirmingDelete, titleVisibility: .visible) {
+                            Button("Delete payout", role: .destructive) {
+                                deleteOnDisappear = true
+                                dismiss()
+                            }
+                        }
                         .disabled(!canDelete)
                     } footer: {
                         if !canDelete {
@@ -78,12 +84,6 @@ struct AddPayoutView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save", action: save)
                         .disabled((amount ?? 0) <= 0)
-                }
-            }
-            .confirmationDialog("Delete this payout?", isPresented: $isConfirmingDelete, titleVisibility: .visible) {
-                Button("Delete payout", role: .destructive) {
-                    deleteOnDisappear = true
-                    dismiss()
                 }
             }
             .onAppear { isAmountFocused = payout == nil }

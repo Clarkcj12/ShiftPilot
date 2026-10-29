@@ -63,6 +63,14 @@ struct TripDetailView: View {
                     isConfirmingDelete = true
                 }
                 .foregroundStyle(.red)
+                .confirmationDialog("Delete this trip?", isPresented: $isConfirmingDelete, titleVisibility: .visible) {
+                    Button("Delete trip", role: .destructive) {
+                        deleteOnDisappear = true
+                        dismiss()
+                    }
+                } message: {
+                    Text("Its miles and route will be removed.")
+                }
                 .disabled(!TripEditor.canDelete(trip))
             } footer: {
                 if !TripEditor.canDelete(trip) {
@@ -76,14 +84,6 @@ struct TripDetailView: View {
             if deleteOnDisappear {
                 TripEditor.delete(trip, in: context)
             }
-        }
-        .confirmationDialog("Delete this trip?", isPresented: $isConfirmingDelete, titleVisibility: .visible) {
-            Button("Delete trip", role: .destructive) {
-                deleteOnDisappear = true
-                dismiss()
-            }
-        } message: {
-            Text("Its miles and route will be removed.")
         }
     }
 
