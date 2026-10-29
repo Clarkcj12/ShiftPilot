@@ -20,7 +20,7 @@ final class GarageStore {
     }
 
     /// Fuel + wear per meter for the current vehicle, or nil until it's set up.
-    var costPerMeter: Decimal? { current?.profile.costPerMeter }
+    var costPerMeter: Decimal? { current?.effectiveProfile.costPerMeter }
 
     @discardableResult
     func addVehicle(units: VehicleProfile.Units) -> Vehicle {
@@ -58,6 +58,17 @@ final class GarageStore {
         let reading = OdometerReading(date: date, value: value)
         context.insert(reading)
         reading.vehicle = vehicle
+        save()
+    }
+
+    func addFillUp(_ fillUp: FillUp, to vehicle: Vehicle) {
+        context.insert(fillUp)
+        fillUp.vehicle = vehicle
+        save()
+    }
+
+    func deleteFillUp(_ fillUp: FillUp) {
+        context.delete(fillUp)
         save()
     }
 

@@ -36,6 +36,9 @@ final class Vehicle {
     @Relationship(deleteRule: .nullify, inverse: \Trip.vehicle)
     var trips: [Trip] = []
 
+    @Relationship(deleteRule: .cascade, inverse: \FillUp.vehicle)
+    var fillUps: [FillUp] = []
+
     init(units: VehicleProfile.Units) {
         unitsRawValue = units.rawValue
     }
@@ -68,16 +71,45 @@ final class Vehicle {
         }
     }
 
+    /// Running costs actually used: measured economy and the latest fill-up price when
+    /// there are enough fill-ups, otherwise what the driver entered.
+    var effectiveProfile: VehicleProfile {
+        var profile = profile
+        let snapshots = fillUps.map(\.snapshot)
+        if let measured = measuredEconomy {
+            profile.fuelEconomy = measured.value
+        }
+        if let latest = FuelEconomyCalculator.latestPrice(snapshots) {
+            profile.fuelPrice = latest.price
+        }
+        return profile
+    }
+
+    var measuredEconomy: MeasuredEconomy? {
+        FuelEconomyCalculator.measured(fillUps.map(\.snapshot), units: profile.units)
+    }
+
+    var sortedFillUps: [FillUp] {
+        fillUps.sorted { $0.date > $1.date }
+    }
+
+    /// The highest odometer value on record, from readings or fill-ups.
+    var latestOdometer: Decimal? {
+        (odometerReadings.map(\.value) + fillUps.map(\.odometer)).max()
+    }
+
     var sortedReadings: [OdometerReading] {
         odometerReadings.sorted { $0.date < $1.date }
     }
 
-    /// Distance driven in `year` from odometer readings (in the vehicle's units), if at
-    /// least two readings fall in that year.
+    /// Distance driven in `year` (in the vehicle's units) from odometer readings and
+    /// fill-ups, if at least two fall in that year.
     func odometerDistance(in year: Int, calendar: Calendar = .current) -> Decimal? {
-        let inYear = sortedReadings.filter { calendar.component(.year, from: $0.date) == year }
-        guard let first = inYear.first, let last = inYear.last, inYear.count > 1 else { return nil }
-        return max(0, last.value - first.value)
+        let values = (odometerReadings.map { ($0.date, $0.value) } + fillUps.map { ($0.date, $0.odometer) })
+            .filter { calendar.component(.year, from: $0.0) == year }
+            .map(\.1)
+        guard values.count > 1, let low = values.min(), let high = values.max() else { return nil }
+        return high - low
     }
 }
 

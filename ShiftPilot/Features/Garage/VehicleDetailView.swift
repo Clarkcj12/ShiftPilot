@@ -5,16 +5,17 @@ struct VehicleDetailView: View {
 
     @Environment(GarageStore.self) private var garage
     @Environment(\.dismiss) private var dismiss
-    @FocusState private var isEditing: Bool
     @State private var isLookingUp = false
     @State private var lookupMessage: String?
     @State private var isAddingReading = false
+    @State private var isLoggingFillUp = false
     @State private var isConfirmingDelete = false
     /// Deleted once the view is gone, so it never renders a deleted model.
     @State private var deleteOnDisappear = false
 
     var body: some View {
         let profile = vehicle.profile
+        let effective = vehicle.effectiveProfile
         let units = profile.units
 
         Form {
@@ -59,11 +60,13 @@ struct VehicleDetailView: View {
                 OptionalDateRow(title: "Policy expires", date: $vehicle.insuranceExpires)
             }
 
+            FillUpsSection(vehicle: vehicle, isLogging: $isLoggingFillUp)
+
             Section {
                 Picker("Units", selection: $vehicle.profile.units) {
                     ForEach(VehicleProfile.Units.allCases) { Text($0.title).tag($0) }
                 }
-                LabeledContent(units.economyLabel) {
+                LabeledContent(vehicle.measuredEconomy == nil ? units.economyLabel : "Estimated \(units.economyLabel)") {
                     DecimalField(units == .us ? "e.g. 28" : "e.g. 8.5", value: $vehicle.profile.fuelEconomy)
                 }
                 LabeledContent("Price per \(units.volume)") {
@@ -72,7 +75,8 @@ struct VehicleDetailView: View {
                 LabeledContent("Wear & tear per \(units.distance)") {
                     DecimalField("0.00", value: $vehicle.profile.wearPerDistance, isCurrency: true)
                 }
-                LabeledContent("Cost per \(units.distance)", value: Format.rate(profile.costPerDistance, per: units.distance))
+                LabeledContent("Cost per \(units.distance)", value: Format.rate(effective.costPerDistance, per: units.distance))
+                    .fontWeight(.semibold)
             } header: {
                 Text("Running costs")
             } footer: {
@@ -101,15 +105,12 @@ struct VehicleDetailView: View {
                 }
             }
         }
-        .focused($isEditing)
-        .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button("Done") { isEditing = false }
-            }
-        }
+        .keyboardDoneButton()
         .navigationTitle(vehicle.displayName)
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $isLoggingFillUp) {
+            FillUpEditorView(vehicle: vehicle)
+        }
         .sheet(isPresented: $isAddingReading) {
             AddOdometerReadingView(vehicle: vehicle, units: units)
         }

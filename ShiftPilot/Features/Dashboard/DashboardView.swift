@@ -9,6 +9,7 @@ struct DashboardView: View {
     @Query(sort: \Trip.startedAt, order: .reverse) private var trips: [Trip]
     @Query(sort: \Shift.startedAt, order: .reverse) private var shifts: [Shift]
     @AppStorage(DistanceUnit.storageKey) private var unit: DistanceUnit = .localeDefault
+    @State private var isLoggingFillUp = false
 
     var body: some View {
         NavigationStack {
@@ -37,6 +38,11 @@ struct DashboardView: View {
                         autoDrive.startTripManually()
                     } end: {
                         autoDrive.endTripManually()
+                    }
+                    if garage.current != nil {
+                        Button("Log fill-up", systemImage: "fuelpump") {
+                            isLoggingFillUp = true
+                        }
                     }
                 }
 
@@ -89,6 +95,11 @@ struct DashboardView: View {
                 }
             }
             .navigationTitle("ShiftPilot")
+            .sheet(isPresented: $isLoggingFillUp) {
+                if let vehicle = garage.current {
+                    FillUpEditorView(vehicle: vehicle)
+                }
+            }
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     NavigationLink {

@@ -32,7 +32,7 @@ Give gig drivers an automated, zero-friction tool to track their true earnings, 
 | **Maintenance Alerts** | Tie tracked miles to a service schedule (e.g. "5,000 gig miles: schedule oil change"). | ⏳ Not started |
 | **Dead Mile Triage** | Swipe a completed trip segment to flag it as a Dead Mile (returning with no order); visualize unprofitable return zones on a map. | ⏳ Not started |
 
-| **Garage** | Vehicles with VIN, plate, registration and insurance; odometer log; fill-ups and vehicle expenses. | 🚧 Step 1 shipped: multiple vehicles, VIN decode (NHTSA vPIC, VIN only, no key), plate/registration/insurance with expiry warnings, odometer readings, running costs per vehicle, trips linked to a vehicle. Next: fill-up log (real MPG and price), then expenses. |
+| **Garage** | Vehicles with VIN, plate, registration and insurance; odometer log; fill-ups and vehicle expenses. | 🚧 Step 1 shipped: multiple vehicles, VIN decode (NHTSA vPIC, VIN only, no key), plate/registration/insurance with expiry warnings, odometer readings, running costs per vehicle, trips linked to a vehicle. Step 2 shipped: fill-up log (odometer, volume, total cost, full/partial) measuring full-to-full MPG or L/100 km over the last 5 tanks; latest pump price and measured economy replace the estimates for net profit. Next: expenses. |
 
 Also shipped (not in the original PRD): a Miles/Kilometers display setting.
 
@@ -72,7 +72,7 @@ Live local prices need a third-party provider, which usually requires a paid API
 3. ~~**Net Profit Engine**~~ Done with user-entered gas price and MPG; live prices later.
 4. **Garage**, replacing a standalone scanner and maintenance feature:
    1. ~~Vehicle profiles, VIN, plate, insurance, odometer.~~ Done.
-   2. Fill-up log: real MPG and price per gallon feeding net profit. Fall back to EIA weekly state/regional average prices (free key) for drivers who don't log fill-ups.
+   2. ~~Fill-up log~~ Done: real MPG and price per gallon feeding net profit. Fall back to EIA weekly state/regional average prices (free key) for drivers who don't log fill-ups.
    3. Vehicle expenses with tax treatment. Tolls and parking are deductible on top of the standard mileage rate; fuel, maintenance and insurance are already covered by it (count them only under the actual-expense method).
    4. **AI Expense Scanner** (Vision text recognition) creating expenses from receipt photos.
 5. **Maintenance Alerts** (odometer offset, service intervals, local notifications).

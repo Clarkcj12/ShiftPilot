@@ -54,7 +54,7 @@ final class TripRecorder {
         context.insert(trip)
         if let vehicle = currentVehicle() {
             trip.vehicle = vehicle
-            trip.vehicleCostPerMeter = vehicle.profile.costPerMeter
+            trip.vehicleCostPerMeter = vehicle.effectiveProfile.costPerMeter
         }
         if let shift = currentShift() {
             trip.shift = shift

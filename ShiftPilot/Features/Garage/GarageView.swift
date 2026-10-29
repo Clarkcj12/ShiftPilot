@@ -56,7 +56,7 @@ private struct VehicleRow: View {
     let isCurrent: Bool
 
     var body: some View {
-        let profile = vehicle.profile
+        let profile = vehicle.effectiveProfile
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text(vehicle.displayName).font(.headline)
