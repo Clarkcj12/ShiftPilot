@@ -3,12 +3,17 @@ import Observation
 
 /// Background GPS tracking for a single trip.
 ///
-/// A `CLBackgroundActivitySession` keeps live updates flowing while the app is in
-/// the background (it shows the blue location indicator). Points are filtered for
-/// accuracy and GPS jumps before being summed into the trip distance.
+/// Uses `CLLocationManager` with `allowsBackgroundLocationUpdates` rather than
+/// `CLLocationUpdate.liveUpdates` + `CLBackgroundActivitySession`: trips usually
+/// begin while ShiftPilot is in the background (woken by a CarPlay/Bluetooth route
+/// change or a significant location change), and with Always authorization only the
+/// manager-based API can start continuous updates from there. A background activity
+/// session started in the background never delivers, which recorded 0-mile trips.
+///
+/// Points are filtered for accuracy and GPS jumps before being summed into the trip distance.
 @MainActor
 @Observable
-final class MileageTracker: TripTracking {
+final class MileageTracker: NSObject, TripTracking {
     private(set) var isTracking = false
     private(set) var isConfirmed = false
     private(set) var distanceMeters: Double = 0
@@ -17,8 +22,7 @@ final class MileageTracker: TripTracking {
 
     @ObservationIgnored var onSpeed: (@MainActor (Double) -> Void)?
     @ObservationIgnored private let recorder: TripRecorder
-    @ObservationIgnored private var session: CLBackgroundActivitySession?
-    @ObservationIgnored private var updatesTask: Task<Void, Never>?
+    @ObservationIgnored private let manager: CLLocationManager
     @ObservationIgnored private var lastAccepted: CLLocation?
 
     /// Readings worse than this are dropped.
@@ -30,6 +34,15 @@ final class MileageTracker: TripTracking {
 
     init(recorder: TripRecorder) {
         self.recorder = recorder
+        let manager = CLLocationManager()
+        manager.activityType = .automotiveNavigation
+        manager.desiredAccuracy = kCLLocationAccuracyBestForNavigation
+        manager.distanceFilter = kCLDistanceFilterNone
+        manager.pausesLocationUpdatesAutomatically = false
+        manager.showsBackgroundLocationIndicator = true
+        self.manager = manager
+        super.init()
+        manager.delegate = self
     }
 
     func beginTrip(trigger: TripTrigger) {
@@ -41,21 +54,9 @@ final class MileageTracker: TripTracking {
         lastAccepted = nil
         recorder.begin(trigger: trigger, at: .now)
 
-        session = CLBackgroundActivitySession()
-        updatesTask = Task { [weak self] in
-            do {
-                for try await update in CLLocationUpdate.liveUpdates(.automotiveNavigation) {
-                    guard let self, !Task.isCancelled else { return }
-                    if update.stationary {
-                        self.onSpeed?(0)
-                    } else if let location = update.location {
-                        self.ingest(location)
-                    }
-                }
-            } catch {
-                Log.location.error("Live updates ended: \(error.localizedDescription)")
-            }
-        }
+        // Requires the `location` background mode; set here, not in init, so it's only on during trips.
+        manager.allowsBackgroundLocationUpdates = true
+        manager.startUpdatingLocation()
     }
 
     func confirmTrip() {
@@ -107,12 +108,23 @@ final class MileageTracker: TripTracking {
     }
 
     private func stopUpdates() {
-        updatesTask?.cancel()
-        updatesTask = nil
-        session?.invalidate()
-        session = nil
+        manager.stopUpdatingLocation()
+        manager.allowsBackgroundLocationUpdates = false
         isTracking = false
         isConfirmed = false
         lastAccepted = nil
+    }
+}
+
+extension MileageTracker: @preconcurrency CLLocationManagerDelegate {
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        guard isTracking else { return }
+        locations.forEach(ingest)
+    }
+
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: any Error) {
+        // `.locationUnknown` is transient; the manager keeps trying.
+        if (error as? CLError)?.code == .locationUnknown { return }
+        Log.location.error("Location updates failed: \(error.localizedDescription)")
     }
 }
