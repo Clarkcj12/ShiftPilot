@@ -99,6 +99,12 @@ enum ExpenseCategory: String, CaseIterable, Identifiable, Codable, Sendable {
         }
     }
 
+    /// Default for the "For gig work" toggle: shift-linked costs (tolls, parking…) count as
+    /// work only when a shift was running; other toggle categories (supplies) default to work.
+    func defaultsToWork(duringShift: Bool) -> Bool {
+        duringShift || !linksToShift
+    }
+
     /// Extra guidance shown under the amount.
     var hint: String? {
         switch self {

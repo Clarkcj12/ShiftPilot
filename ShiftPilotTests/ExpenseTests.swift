@@ -34,6 +34,14 @@ struct ExpenseTreatmentTests {
         #expect(expense(.fines, 40, use: 1).netProfitCost == 40)
     }
 
+    @Test func forWorkDefaultFollowsShiftAndCategory() {
+        #expect(ExpenseCategory.tolls.defaultsToWork(duringShift: true))
+        #expect(!ExpenseCategory.tolls.defaultsToWork(duringShift: false))
+        #expect(!ExpenseCategory.parking.defaultsToWork(duringShift: false))
+        // Supplies aren't tied to a shift, so they default to work either way.
+        #expect(ExpenseCategory.supplies.defaultsToWork(duringShift: false))
+    }
+
     @Test func perMileCategoriesDontLowerNetProfitTwice() {
         #expect(expense(.fuel, 40, use: 1).netProfitCost == 0)
         #expect(expense(.maintenance, 600, use: 1).netProfitCost == 0)

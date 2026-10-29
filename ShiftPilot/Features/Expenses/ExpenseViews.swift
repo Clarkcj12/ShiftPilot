@@ -13,6 +13,8 @@ struct ExpenseEditorView: View {
     @State private var date: Date
     @State private var vehicle: Vehicle?
     @State private var isForWork: Bool
+    /// Once the driver flips the toggle, stop re-deriving its default.
+    @State private var hasChosenForWork: Bool
     @State private var businessPercent: Decimal?
     @State private var note: String
     @State private var isConfirmingDelete = false
@@ -28,6 +30,7 @@ struct ExpenseEditorView: View {
         _date = State(initialValue: expense?.date ?? shift.map { $0.endedAt ?? .now } ?? .now)
         _vehicle = State(initialValue: expense?.vehicle)
         _isForWork = State(initialValue: (expense?.businessUse ?? 1) > 0)
+        _hasChosenForWork = State(initialValue: expense != nil)
         _businessPercent = State(initialValue: expense?.businessUse.map { $0 * 100 })
         _note = State(initialValue: expense?.note ?? "")
     }
@@ -55,7 +58,12 @@ struct ExpenseEditorView: View {
                 Section {
                     switch category.businessUseKind {
                     case .toggle:
-                        Toggle("For gig work", isOn: $isForWork)
+                        Toggle("For gig work", isOn: Binding {
+                            isForWork
+                        } set: {
+                            isForWork = $0
+                            hasChosenForWork = true
+                        })
                     case .percentage:
                         LabeledContent("Business use") {
                             HStack(spacing: 2) {
@@ -121,16 +129,21 @@ struct ExpenseEditorView: View {
                 if expense == nil, vehicle == nil {
                     vehicle = garage.current
                 }
-                if expense == nil, category.businessUseKind == .toggle {
-                    isForWork = garage.shift(containing: date) != nil || !category.linksToShift
-                }
+                updateForWorkDefault()
             }
+            .onChange(of: category) { updateForWorkDefault() }
+            .onChange(of: date) { updateForWorkDefault() }
             .onDisappear {
                 if deleteOnDisappear, let expense {
                     garage.delete(expense)
                 }
             }
         }
+    }
+
+    private func updateForWorkDefault() {
+        guard !hasChosenForWork else { return }
+        isForWork = category.defaultsToWork(duringShift: garage.shift(containing: date) != nil)
     }
 
     private var businessUse: Decimal? {

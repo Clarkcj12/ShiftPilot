@@ -18,6 +18,9 @@ struct NetProfitSection: View {
         Section {
             if let cost = snapshot.vehicleCost, let net = snapshot.netProfit {
                 LabeledContent("Fuel & wear", value: "−\(Format.money(cost))")
+                if snapshot.expenses > 0 {
+                    LabeledContent("Tolls, parking & other", value: "−\(Format.money(TaxCalculator.round(snapshot.expenses)))")
+                }
                 LabeledContent("Net profit", value: Format.money(net))
                     .fontWeight(.semibold)
                 LabeledContent("Net per hour", value: Format.rate(snapshot.netHourlyRate, per: "hr"))
