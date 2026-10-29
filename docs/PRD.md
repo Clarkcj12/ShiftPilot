@@ -27,7 +27,7 @@ Give gig drivers an automated, zero-friction tool to track their true earnings, 
 
 | Feature | Requirement | Status |
 | --- | --- | --- |
-| **Net Profit Engine** | Gross earnings minus estimated fuel (local gas price × car MPG) and wear-and-tear = True Net Profit. | ⏳ Not started. See note D. |
+| **Net Profit Engine** | Gross earnings minus estimated fuel (local gas price × car MPG) and wear-and-tear = True Net Profit. | ✅ Shipped (v1). User-entered MPG or L/100 km, fuel price and optional wear per mile/km in Settings → Vehicle. Each trip captures its cost when recorded, so price changes don't rewrite past shifts. Net profit and net per hour on the shift card, shift screen, dashboard and Insights. Live gas prices still need a backend; see note D. |
 | **AI Expense Scanner** | Photograph receipts (car wash, tolls, phone bill); Vision extracts the total and adds it to deductions. | ⏳ Not started |
 | **Maintenance Alerts** | Tie tracked miles to a service schedule (e.g. "5,000 gig miles: schedule oil change"). | ⏳ Not started |
 | **Dead Mile Triage** | Swipe a completed trip segment to flag it as a Dead Mile (returning with no order); visualize unprofitable return zones on a map. | ⏳ Not started |
@@ -67,7 +67,7 @@ Live local prices need a third-party provider, which usually requires a paid API
 
 1. ~~**Shifts and earnings.**~~ Done.
 2. ~~**IRS Tax Calculator & Quarterly Vault**~~ Done. Rates live in `TaxTables.swift`; update it each December.
-3. **Net Profit Engine**, starting with user-entered gas price and MPG.
+3. ~~**Net Profit Engine**~~ Done with user-entered gas price and MPG; live prices later.
 4. **AI Expense Scanner** (Vision text recognition and an `Expense` model).
 5. **Maintenance Alerts** (odometer offset, service intervals, local notifications).
 6. **Dead Mile Triage** (trip segments and a MapKit visualization).

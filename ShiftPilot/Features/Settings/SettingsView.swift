@@ -7,6 +7,7 @@ struct SettingsView: View {
     @Environment(KnownDevicesStore.self) private var devices
     @Environment(BLEAccessoryMonitor.self) private var bleMonitor
     @Environment(AutoDriveDetectionManager.self) private var autoDrive
+    @Environment(VehicleStore.self) private var vehicle
     @AppStorage(DistanceUnit.storageKey) private var unit: DistanceUnit = .localeDefault
 
     var body: some View {
@@ -21,6 +22,18 @@ struct SettingsView: View {
                 Text("Units")
             } footer: {
                 Text("Trips are stored precisely, so switching units updates every trip.")
+            }
+
+            Section {
+                NavigationLink {
+                    VehicleSettingsView()
+                } label: {
+                    LabeledContent("Vehicle", value: vehicle.profile.isConfigured
+                        ? Format.rate(vehicle.profile.costPerDistance, per: vehicle.profile.units.distance)
+                        : "Not set up")
+                }
+            } footer: {
+                Text("Fuel economy, gas price and wear & tear, for net profit.")
             }
 
             Section {

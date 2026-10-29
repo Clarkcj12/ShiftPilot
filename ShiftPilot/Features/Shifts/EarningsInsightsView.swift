@@ -20,12 +20,13 @@ struct EarningsInsightsView: View {
     }
 
     @Query(sort: \Shift.startedAt, order: .reverse) private var shifts: [Shift]
+    @Environment(VehicleStore.self) private var vehicle
     @State private var period: Period = .month
 
     var body: some View {
         let snapshots = shifts
             .filter { shift in period.cutoff.map { shift.startedAt >= $0 } ?? true }
-            .map { $0.snapshot() }
+            .map { $0.snapshot(costPerMeter: vehicle.costPerMeter) }
         let gross = snapshots.reduce(Decimal(0)) { $0 + $1.gross }
         let seconds = snapshots.reduce(0) { $0 + $1.duration }
 
@@ -56,6 +57,10 @@ struct EarningsInsightsView: View {
         Section("Overall") {
             LabeledContent("True EPH", value: Format.rate(EarningsCalculator.hourlyRate(gross, over: seconds), per: "hr"))
             LabeledContent("Earnings", value: Format.money(gross))
+            if let net = NetProfit.total(snapshots) {
+                LabeledContent("Net profit", value: Format.money(net))
+                LabeledContent("Net per hour", value: Format.rate(EarningsCalculator.hourlyRate(net, over: seconds), per: "hr"))
+            }
             LabeledContent("Time on shift", value: Format.duration(seconds))
             LabeledContent("Shifts", value: "\(snapshots.count)")
         }

@@ -5,6 +5,7 @@ struct ShiftDetailView: View {
 
     @Environment(ShiftManager.self) private var shifts
     @Environment(\.dismiss) private var dismiss
+    @Environment(VehicleStore.self) private var vehicle
     @AppStorage(DistanceUnit.storageKey) private var unit: DistanceUnit = .localeDefault
     @State private var isAddingPayout = false
     @State private var editingPayout: Payout?
@@ -14,7 +15,7 @@ struct ShiftDetailView: View {
     @State private var deleteOnDisappear = false
 
     var body: some View {
-        let snapshot = shift.snapshot()
+        let snapshot = shift.snapshot(costPerMeter: vehicle.costPerMeter)
         let payouts = shift.payouts.sorted { $0.receivedAt > $1.receivedAt }
         let trips = shift.trips.sorted { $0.startedAt > $1.startedAt }
 
@@ -26,6 +27,8 @@ struct ShiftDetailView: View {
                 LabeledContent("Business distance", value: unit.format(meters: snapshot.distanceMeters))
                 LabeledContent("Per \(unit.abbreviation)", value: Format.rate(snapshot.earningsPerDistance(in: unit), per: unit.abbreviation))
             }
+
+            NetProfitSection(snapshot: snapshot)
 
             Section {
                 ForEach(payouts) { payout in

@@ -24,6 +24,9 @@ final class Trip {
     var shift: Shift?
     /// nil until classified. Trips logged on a shift start as business; others wait for the driver.
     var purposeRawValue: String? = nil
+    /// Fuel + wear per meter when the trip was recorded, so later price changes don't
+    /// rewrite past shifts. nil if no vehicle was set up yet.
+    var vehicleCostPerMeter: Decimal? = nil
 
     @Relationship(deleteRule: .cascade, inverse: \TripPoint.trip)
     var points: [TripPoint] = []
@@ -37,6 +40,11 @@ final class Trip {
     var trigger: TripTrigger? { TripTrigger(rawValue: triggerRawValue) }
     var miles: Double { distanceMeters / 1609.344 }
     var isActive: Bool { endedAt == nil }
+
+    /// Fuel and wear for this trip, using `fallback` when no cost was captured.
+    func vehicleCost(fallback: Decimal?) -> Decimal? {
+        (vehicleCostPerMeter ?? fallback).map { $0 * Decimal(distanceMeters) }
+    }
 
     var purpose: TripPurpose? {
         get { purposeRawValue.flatMap(TripPurpose.init(rawValue:)) }

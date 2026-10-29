@@ -14,6 +14,7 @@ struct ShiftPilotApp: App {
                 .environment(env.permissions)
                 .environment(env.knownDevices)
                 .environment(env.bleMonitor)
+                .environment(env.vehicle)
         }
         .modelContainer(env.modelContainer)
     }

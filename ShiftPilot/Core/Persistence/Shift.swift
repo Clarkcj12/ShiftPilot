@@ -40,12 +40,17 @@ final class Shift {
 
     var isActive: Bool { endedAt == nil }
 
-    func snapshot(now: Date = .now) -> ShiftSnapshot {
-        ShiftSnapshot(
+    /// - Parameter costPerMeter: the vehicle's current cost, for trips recorded before one was set up.
+    func snapshot(now: Date = .now, costPerMeter: Decimal? = nil) -> ShiftSnapshot {
+        let business = trips.filter { $0.purpose != .personal }
+        let costs = business.map { $0.vehicleCost(fallback: costPerMeter) }
+        return ShiftSnapshot(
             start: startedAt,
             end: endedAt ?? now,
             payouts: payouts.map { PayoutSnapshot(platform: $0.platform, amount: $0.amount, receivedAt: $0.receivedAt) },
-            distanceMeters: trips.filter { $0.purpose != .personal }.reduce(0) { $0 + $1.distanceMeters }
+            distanceMeters: business.reduce(0) { $0 + $1.distanceMeters },
+            // Unknown if any trip's cost is unknown, rather than quietly undercounting.
+            vehicleCost: costs.contains(nil) ? nil : costs.reduce(Decimal(0)) { $0 + ($1 ?? 0) }
         )
     }
 }

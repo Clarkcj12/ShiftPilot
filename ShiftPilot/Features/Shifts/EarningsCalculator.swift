@@ -12,12 +12,20 @@ struct ShiftSnapshot: Sendable {
     var end: Date
     var payouts: [PayoutSnapshot]
     var distanceMeters: Double
+    /// Fuel and wear for the shift's business trips; nil until a vehicle is set up.
+    var vehicleCost: Decimal? = nil
 
     var duration: TimeInterval { max(0, end.timeIntervalSince(start)) }
     var gross: Decimal { payouts.reduce(0) { $0 + $1.amount } }
 
     /// True EPH: gross pay over the whole shift, including waiting time between orders.
     var hourlyRate: Decimal? { EarningsCalculator.hourlyRate(gross, over: duration) }
+
+    /// Gross minus fuel and wear.
+    var netProfit: Decimal? { vehicleCost.map { gross - $0 } }
+
+    /// Net profit over the whole shift.
+    var netHourlyRate: Decimal? { netProfit.flatMap { EarningsCalculator.hourlyRate($0, over: duration) } }
 
     func earningsPerDistance(in unit: DistanceUnit) -> Decimal? {
         let distance = unit.value(fromMeters: distanceMeters)

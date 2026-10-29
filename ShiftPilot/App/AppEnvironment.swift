@@ -10,6 +10,7 @@ final class AppEnvironment {
     let tracker: MileageTracker
     let autoDrive: AutoDriveDetectionManager
     let shifts: ShiftManager
+    let vehicle: VehicleStore
 
     private let recorder: TripRecorder
     private let waker = SignificantLocationWaker()
@@ -26,7 +27,13 @@ final class AppEnvironment {
         bleMonitor = BLEAccessoryMonitor(devices: knownDevices)
         let shifts = ShiftManager(context: modelContainer.mainContext)
         self.shifts = shifts
-        recorder = TripRecorder(context: modelContainer.mainContext) { shifts.activeShift }
+        let vehicle = VehicleStore()
+        self.vehicle = vehicle
+        recorder = TripRecorder(
+            context: modelContainer.mainContext,
+            currentShift: { shifts.activeShift },
+            costPerMeter: { vehicle.costPerMeter }
+        )
         tracker = MileageTracker(recorder: recorder)
         autoDrive = AutoDriveDetectionManager(
             sources: [
