@@ -16,6 +16,8 @@ final class TripRecorder {
     private var unsavedPoints = 0
 
     private let saveEvery = 20
+    /// GPS-started trips shorter than this (0.1 mi) are a speed blip, not a drive.
+    static let minimumGPSTripMeters: Double = 160
 
     /// - Parameter currentShift: the shift a newly confirmed trip should belong to.
     /// - Parameter currentVehicle: the car new trips are logged against; its fuel + wear
@@ -70,7 +72,11 @@ final class TripRecorder {
 
     func finish(at date: Date) {
         if let trip {
-            trip.endedAt = trip.points.map(\.timestamp).max() ?? date
+            if trip.trigger == .gps, trip.distanceMeters < Self.minimumGPSTripMeters {
+                context.delete(trip)
+            } else {
+                trip.endedAt = trip.points.map(\.timestamp).max() ?? date
+            }
             save()
         }
         reset()

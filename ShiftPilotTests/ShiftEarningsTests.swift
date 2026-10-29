@@ -110,6 +110,22 @@ struct ShiftManagerTests {
         #expect(shift.endedAt != nil)
     }
 
+    @Test func tinyGPSTripIsDroppedButRealOneKept() throws {
+        let context = try makeContext()
+        let recorder = TripRecorder(context: context)
+        func drive(_ meters: Double, trigger: TripTrigger) {
+            recorder.begin(trigger: trigger, at: .now)
+            recorder.confirm()
+            recorder.record(CLLocation(latitude: 38.3, longitude: -76.5), distanceDelta: meters)
+            recorder.finish(at: .now)
+        }
+        drive(40, trigger: .gps)
+        #expect(try context.fetchCount(FetchDescriptor<Trip>()) == 0)
+        drive(400, trigger: .gps)
+        drive(40, trigger: .carPlay)
+        #expect(try context.fetchCount(FetchDescriptor<Trip>()) == 2)
+    }
+
     @Test func startingAShiftAdoptsTheTripInProgress() throws {
         let context = try makeContext()
         let shifts = ShiftManager(context: context)

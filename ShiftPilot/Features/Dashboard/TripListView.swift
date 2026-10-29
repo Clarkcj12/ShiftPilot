@@ -174,6 +174,7 @@ extension Trip {
         case .bleAccessory: "Accessory"
         case .motion: "Motion"
         case .manual: "Manual"
+        case .gps: "GPS (on shift)"
         case nil: "Unknown"
         }
     }

@@ -152,6 +152,44 @@ struct DriveDetectorTests {
 
     // MARK: Manual start/stop
 
+    @Test func onShiftDrivingSpeedStartsConfirmedGPSTrip() {
+        var state = DetectorState()
+        _ = reduce(&state, .shift(isActive: true), at: 0)
+        #expect(reduce(&state, .speed(metersPerSecond: 3), at: 1).isEmpty)
+        #expect(reduce(&state, .speed(metersPerSecond: 10), at: 5) == [.beginTrip(.gps), .confirmTrip])
+    }
+
+    @Test func onShiftStopAndGoTrafficKeepsTheTrip() {
+        var state = DetectorState()
+        _ = reduce(&state, .shift(isActive: true), at: 0)
+        _ = reduce(&state, .speed(metersPerSecond: 10), at: 0)
+        // Stop-and-go for 10 minutes, well past the old 300 s candidate timeout.
+        for t in stride(from: 10.0, through: 600, by: 30) {
+            #expect(reduce(&state, .speed(metersPerSecond: Int(t / 30) % 3 == 0 ? 0 : 8), at: t).isEmpty)
+        }
+        #expect(state.phase != .idle)
+    }
+
+    @Test func offShiftSpeedAloneNeverStartsATrip() {
+        var state = DetectorState()
+        #expect(reduce(&state, .speed(metersPerSecond: 15), at: 0).isEmpty)
+        _ = reduce(&state, .shift(isActive: true), at: 1)
+        _ = reduce(&state, .shift(isActive: false), at: 2)
+        #expect(reduce(&state, .speed(metersPerSecond: 15), at: 3).isEmpty)
+        #expect(state.phase == .idle)
+    }
+
+    @Test func onShiftGPSTripEndsAfterParking() {
+        var state = DetectorState()
+        _ = reduce(&state, .shift(isActive: true), at: 0)
+        _ = reduce(&state, .speed(metersPerSecond: 10), at: 0)
+        _ = reduce(&state, .speed(metersPerSecond: 0), at: 300)
+        #expect(reduce(&state, .tick, at: 481) == [.finishTrip])
+        #expect(state.phase == .idle)
+        // GPS is still on during the shift, so the next drive starts a new trip.
+        #expect(reduce(&state, .speed(metersPerSecond: 10), at: 600) == [.beginTrip(.gps), .confirmTrip])
+    }
+
     @Test func manualStartBeginsConfirmedTrip() {
         var state = DetectorState()
         #expect(reduce(&state, .manualStart, at: 0) == [.beginTrip(.manual), .confirmTrip])
@@ -238,7 +276,7 @@ private final class TestClock {
 @MainActor
 private final class MockTracker: TripTracking {
     enum Call: Equatable {
-        case begin(TripTrigger), confirm, finish, discard
+        case begin(TripTrigger), confirm, finish, discard, standby(Bool)
     }
 
     var onSpeed: (@MainActor (Double) -> Void)?
@@ -248,6 +286,7 @@ private final class MockTracker: TripTracking {
     func confirmTrip() { calls.append(.confirm) }
     func finishTrip() { calls.append(.finish) }
     func discardTrip() { calls.append(.discard) }
+    func setStandby(_ isOn: Bool) { calls.append(.standby(isOn)) }
 }
 
 struct DistanceUnitTests {

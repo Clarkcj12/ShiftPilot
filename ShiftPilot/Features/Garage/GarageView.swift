@@ -92,7 +92,7 @@ private struct VehicleRow: View {
                         .background(.green.opacity(0.15), in: .capsule)
                 }
                 Spacer()
-                Text(profile.isConfigured ? Format.rate(profile.costPerDistance, per: profile.units.distance) : "No costs")
+                Text(profile.isConfigured ? Format.rate(profile.costPerDistance, per: profile.units.distance) : ((profile.fuelEconomy ?? 0) > 0 ? "No fuel price" : "No costs"))
                     .font(.subheadline.monospacedDigit())
                     .foregroundStyle(.secondary)
             }

@@ -10,6 +10,9 @@ protocol TripTracking: AnyObject {
     func confirmTrip()
     func finishTrip()
     func discardTrip()
+    /// Keeps GPS on between trips (during a shift) so drives start without waiting on
+    /// motion or CarPlay, and the stretch before a trip is confirmed isn't lost.
+    func setStandby(_ isOn: Bool)
 }
 
 /// Merges car-connection, motion and speed signals and starts/stops GPS mileage tracking.
@@ -79,6 +82,13 @@ final class AutoDriveDetectionManager {
     /// Asks every source to re-read current state (called when iOS wakes the app).
     func refresh() {
         sources.forEach { $0.refresh() }
+    }
+
+    func setOnShift(_ isOnShift: Bool) {
+        guard isOnShift != state.isOnShift else { return }
+        Log.autodrive.info("On shift: \(isOnShift)")
+        tracker.setStandby(isOnShift)
+        handle(.shift(isActive: isOnShift))
     }
 
     func startTripManually() {

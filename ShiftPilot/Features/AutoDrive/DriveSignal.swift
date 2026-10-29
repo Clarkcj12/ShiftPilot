@@ -10,6 +10,8 @@ enum DriveSignal: Sendable, Equatable {
     case manualStart
     /// The driver tapped End trip.
     case manualStop
+    /// A shift started or ended. On shift, GPS stays on and driving speed alone starts a trip.
+    case shift(isActive: Bool)
     /// Emitted by the manager's timer so time-based transitions fire without new signals.
     case tick
 }

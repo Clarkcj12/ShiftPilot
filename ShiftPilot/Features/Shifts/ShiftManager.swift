@@ -6,7 +6,16 @@ import SwiftData
 @MainActor
 @Observable
 final class ShiftManager {
-    private(set) var activeShift: Shift?
+    private(set) var activeShift: Shift? {
+        didSet {
+            if (oldValue == nil) != (activeShift == nil) {
+                onActiveShiftChange?(activeShift != nil)
+            }
+        }
+    }
+
+    /// Called when a shift starts or stops being active.
+    @ObservationIgnored var onActiveShiftChange: (@MainActor (Bool) -> Void)?
 
     @ObservationIgnored private let context: ModelContext
 

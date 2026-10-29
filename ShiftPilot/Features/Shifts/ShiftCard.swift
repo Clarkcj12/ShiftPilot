@@ -11,7 +11,7 @@ struct ShiftCard: View {
             VStack(alignment: .leading, spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Not on shift").font(.headline)
-                    Text("Start a shift to track your true earnings per hour across every app.")
+                    Text("Start when you go online and end when you're done for the day. GPS stays on during a shift so every mile is logged.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }

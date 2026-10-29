@@ -20,6 +20,8 @@ struct DetectionConfig: Sendable {
 /// Where a trip's detection came from; stored on the trip.
 enum TripTrigger: String, Sendable, Codable {
     case carPlay, bluetoothAudio, bleAccessory, motion, manual
+    /// Driving speed seen on GPS during a shift.
+    case gps
 
     init(_ connection: CarConnection) {
         switch connection {
@@ -53,6 +55,8 @@ struct DetectorState: Equatable, Sendable {
     /// Set when a motion candidate is discarded; motion must report non-automotive
     /// before it can start another, so a stuck automotive reading can't loop.
     var motionNeedsReset = false
+    /// A shift is running, so GPS is on between trips and feeds `.speed` while idle.
+    var isOnShift = false
     var candidateSince: Date?
     var fastSince: Date?
     var stillSince: Date?
@@ -90,6 +94,7 @@ enum DetectorEffect: Equatable, Sendable {
 ///
 ///     idle ──car connected──────────────────────────▶ driving
 ///     idle ──automotive motion──▶ candidate ──speed held──▶ driving
+///     idle ──on shift, GPS at driving speed─────────▶ driving
 ///     candidate ──timeout──▶ idle (discard)
 ///     driving ──car + motion signals lost──▶ ending ──parked for endDuration──▶ idle (finish)
 ///     ending ──car reconnects / automotive again──▶ driving
@@ -155,9 +160,18 @@ enum DriveDetector {
                 state.stillSince = speed <= config.stationarySpeed ? (state.stillSince ?? now) : nil
             case .driving, .ending:
                 state.stillSince = speed <= config.stationarySpeed ? (state.stillSince ?? now) : nil
+            case .idle where state.isOnShift && speed >= config.drivingSpeed && !state.suppressAutoStart:
+                // On shift, driving speed on GPS is a drive: confirm at once. Stop-and-go
+                // traffic rarely holds `confirmDuration`, and a discarded candidate loses
+                // its miles. The recorder drops GPS trips too short to be real.
+                effects = [.beginTrip(.gps), .confirmTrip]
+                state.enterDriving()
             case .idle:
                 break
             }
+
+        case .shift(let isActive):
+            state.isOnShift = isActive
 
         case .manualStart:
             switch state.phase {

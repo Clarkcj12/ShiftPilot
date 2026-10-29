@@ -44,6 +44,7 @@ final class AppEnvironment {
             tracker: tracker
         )
         waker.onWake = { [weak autoDrive] in autoDrive?.refresh() }
+        shifts.onActiveShiftChange = { [weak autoDrive] in autoDrive?.setOnShift($0) }
     }
 
     /// Called from `application(_:didFinishLaunchingWithOptions:)`, including background relaunches.
@@ -56,5 +57,6 @@ final class AppEnvironment {
         recorder.closeAbandonedTrips()
         waker.start()
         autoDrive.start()
+        autoDrive.setOnShift(shifts.activeShift != nil)
     }
 }

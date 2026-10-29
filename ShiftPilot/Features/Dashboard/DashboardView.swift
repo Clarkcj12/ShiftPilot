@@ -56,7 +56,15 @@ struct DashboardView: View {
                         LabeledContent("Net profit", value: Format.money(net))
                     }
                     LabeledContent("Distance", value: unit.format(meters: todayMeters))
-                    LabeledContent("Mileage deduction", value: Format.money(todayDeduction))
+                    LabeledContent("Business distance", value: unit.format(meters: todayBusinessMeters))
+                    LabeledContent("Mileage deduction") {
+                        VStack(alignment: .trailing, spacing: 0) {
+                            Text(Format.money(todayDeduction))
+                            Text("Business miles × \(TaxTables.rateLabel(on: .now))")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                     LabeledContent("Trips", value: "\(todayTrips.count)")
                 }
 
@@ -136,9 +144,16 @@ struct DashboardView: View {
         todayTrips.reduce(0) { $0 + $1.distanceMeters }
     }
 
+    private var todayBusinessTrips: [Trip] {
+        todayTrips.filter { $0.purpose == .business }
+    }
+
+    private var todayBusinessMeters: Double {
+        todayBusinessTrips.reduce(0) { $0 + $1.distanceMeters }
+    }
+
     private var todayDeduction: Decimal {
-        let business = todayTrips
-            .filter { $0.purpose == .business }
+        let business = todayBusinessTrips
             .map { TaxMileage(meters: $0.distanceMeters, date: $0.startedAt) }
         return TaxCalculator.round(business.reduce(0) { $0 + TaxCalculator.deduction(for: $1) })
     }

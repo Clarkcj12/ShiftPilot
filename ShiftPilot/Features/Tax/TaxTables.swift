@@ -39,6 +39,12 @@ enum TaxTables {
         return periods.last { $0.start <= date }?.rate
     }
 
+    /// The rate on `date` as shown to drivers, e.g. "76¢/mi".
+    static func rateLabel(on date: Date, calendar: Calendar = .current) -> String {
+        guard let rate = mileageRate(on: date, calendar: calendar) else { return "" }
+        return "\((rate * 100).formatted(.number.precision(.fractionLength(0...1))))¢/mi"
+    }
+
     static func hasPublishedRate(for year: Int) -> Bool {
         year <= latestRateYear
     }

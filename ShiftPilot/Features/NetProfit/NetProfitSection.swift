@@ -14,6 +14,8 @@ enum NetProfit {
 struct NetProfitSection: View {
     let snapshot: ShiftSnapshot
 
+    @Environment(GarageStore.self) private var garage
+
     var body: some View {
         Section {
             if let cost = snapshot.vehicleCost, let net = snapshot.netProfit {
@@ -24,11 +26,17 @@ struct NetProfitSection: View {
                 LabeledContent("Net profit", value: Format.money(net))
                     .fontWeight(.semibold)
                 LabeledContent("Net per hour", value: Format.rate(snapshot.netHourlyRate, per: "hr"))
+            } else if let vehicle = garage.current {
+                NavigationLink {
+                    VehicleDetailView(vehicle: vehicle)
+                } label: {
+                    Label(Self.missingCostPrompt(vehicle.effectiveProfile), systemImage: "fuelpump.fill")
+                }
             } else {
                 NavigationLink {
                     GarageView()
                 } label: {
-                    Label("Set up your vehicle to see net profit", systemImage: "fuelpump.fill")
+                    Label("Add your vehicle to see net profit", systemImage: "fuelpump.fill")
                 }
             }
         } header: {
@@ -37,6 +45,19 @@ struct NetProfitSection: View {
             if snapshot.vehicleCost != nil {
                 Text("Estimated from your vehicle settings for this shift's business trips.")
             }
+        }
+    }
+}
+
+extension NetProfitSection {
+    /// Names what's missing, so a half set-up vehicle isn't told to "set up" again.
+    static func missingCostPrompt(_ profile: VehicleProfile) -> String {
+        let hasEconomy = (profile.fuelEconomy ?? 0) > 0
+        let hasPrice = (profile.fuelPrice ?? 0) > 0
+        switch (hasEconomy, hasPrice) {
+        case (true, false): return "Add a fuel price to see net profit"
+        case (false, true): return "Add your \(profile.units == .us ? "MPG" : "fuel economy") to see net profit"
+        default: return "Add fuel economy and price to see net profit"
         }
     }
 }
