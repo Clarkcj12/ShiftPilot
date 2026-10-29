@@ -91,10 +91,42 @@ private struct ActiveShiftCard: View {
         .sheet(isPresented: $isAddingPayout) {
             AddPayoutView(shift: shift)
         }
-        .confirmationDialog("End this shift?", isPresented: $isConfirmingEnd, titleVisibility: .visible) {
-            Button("End shift", role: .destructive) { shifts.endShift() }
+        .endShiftDialog(shift: shift, isPresented: $isConfirmingEnd, isAddingPayout: $isAddingPayout)
+    }
+}
+
+extension View {
+    /// Confirms ending a shift. A shift with no payouts can't end: the dialog offers
+    /// to add one (platform and amount are required there) or discard the shift.
+    func endShiftDialog(shift: Shift, isPresented: Binding<Bool>, isAddingPayout: Binding<Bool>) -> some View {
+        modifier(EndShiftDialog(shift: shift, isPresented: isPresented, isAddingPayout: isAddingPayout))
+    }
+}
+
+private struct EndShiftDialog: ViewModifier {
+    let shift: Shift
+    @Binding var isPresented: Bool
+    @Binding var isAddingPayout: Bool
+
+    @Environment(ShiftManager.self) private var shifts
+
+    func body(content: Content) -> some View {
+        let canEnd = ShiftManager.canEnd(shift)
+        content.confirmationDialog(
+            canEnd ? "End this shift?" : "Add a payout first",
+            isPresented: $isPresented,
+            titleVisibility: .visible
+        ) {
+            if canEnd {
+                Button("End shift", role: .destructive) { shifts.endShift() }
+            } else {
+                Button("Add payout") { isAddingPayout = true }
+                Button("Discard shift", role: .destructive) { shifts.deleteShift(shift) }
+            }
         } message: {
-            Text("You can still add payouts to it afterwards.")
+            Text(canEnd
+                ? "You can still add payouts to it afterwards."
+                : "A shift needs at least one payout, with the app that paid you, before it can end. Discard it if you didn't work.")
         }
     }
 }

@@ -6,6 +6,7 @@ struct ShiftDetailView: View {
     @Environment(ShiftManager.self) private var shifts
     @AppStorage(DistanceUnit.storageKey) private var unit: DistanceUnit = .localeDefault
     @State private var isAddingPayout = false
+    @State private var isConfirmingEnd = false
 
     var body: some View {
         let snapshot = shift.snapshot()
@@ -34,6 +35,7 @@ struct ShiftDetailView: View {
                         Spacer()
                         Text(Format.money(payout.amount)).monospacedDigit()
                     }
+                    .deleteDisabled(!ShiftManager.canDelete(payout))
                 }
                 .onDelete { offsets in
                     for index in offsets {
@@ -55,7 +57,7 @@ struct ShiftDetailView: View {
             if shift.isActive {
                 Section {
                     Button("End shift", systemImage: "stop.fill", role: .destructive) {
-                        shifts.endShift()
+                        isConfirmingEnd = true
                     }
                 }
             }
@@ -64,5 +66,6 @@ struct ShiftDetailView: View {
         .sheet(isPresented: $isAddingPayout) {
             AddPayoutView(shift: shift)
         }
+        .endShiftDialog(shift: shift, isPresented: $isConfirmingEnd, isAddingPayout: $isAddingPayout)
     }
 }

@@ -37,12 +37,26 @@ final class ShiftManager {
         save()
     }
 
-    func endShift(at date: Date = .now) {
-        guard let activeShift else { return }
+    /// Ends the active shift. Refused (returns false) until the shift has at least one
+    /// payout, so every saved shift says which app paid and how much.
+    @discardableResult
+    func endShift(at date: Date = .now) -> Bool {
+        guard let activeShift, Self.canEnd(activeShift) else { return false }
         activeShift.endedAt = date
         self.activeShift = nil
         Log.persistence.info("Shift ended")
         save()
+        return true
+    }
+
+    static func canEnd(_ shift: Shift) -> Bool {
+        !shift.payouts.isEmpty
+    }
+
+    /// An ended shift must keep at least one payout.
+    static func canDelete(_ payout: Payout) -> Bool {
+        guard let shift = payout.shift, !shift.isActive else { return true }
+        return shift.payouts.count > 1
     }
 
     func addPayout(_ amount: Decimal, platform: GigPlatform, receivedAt: Date, note: String = "", to shift: Shift) {
@@ -53,6 +67,7 @@ final class ShiftManager {
     }
 
     func deletePayout(_ payout: Payout) {
+        guard Self.canDelete(payout) else { return }
         context.delete(payout)
         save()
     }

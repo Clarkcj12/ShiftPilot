@@ -104,7 +104,8 @@ struct ShiftManagerTests {
         let shift = try #require(shifts.activeShift)
         #expect(shift.trips.count == 1)
 
-        shifts.endShift()
+        shifts.addPayout(9, platform: .shipt, receivedAt: .now, to: shift)
+        #expect(shifts.endShift())
         #expect(shifts.activeShift == nil)
         #expect(shift.endedAt != nil)
     }
@@ -136,6 +137,33 @@ struct ShiftManagerTests {
         shifts.addPayout(12.5, platform: .doorDash, receivedAt: .now, to: shift)
         shifts.addPayout(7.5, platform: .uber, receivedAt: .now, to: shift)
         #expect(shift.snapshot().gross == 20)
+
+        shifts.deletePayout(shift.payouts[0])
+        #expect(shift.payouts.count == 1)
+    }
+
+    @Test func shiftWithoutPayoutCannotEnd() throws {
+        let context = try makeContext()
+        let shifts = ShiftManager(context: context)
+        shifts.startShift()
+        let shift = try #require(shifts.activeShift)
+
+        #expect(!shifts.endShift())
+        #expect(shifts.activeShift === shift)
+        #expect(shift.endedAt == nil)
+
+        shifts.addPayout(15, platform: .instacart, receivedAt: .now, to: shift)
+        #expect(shifts.endShift())
+        #expect(shift.endedAt != nil)
+    }
+
+    @Test func endedShiftKeepsItsLastPayout() throws {
+        let context = try makeContext()
+        let shifts = ShiftManager(context: context)
+        shifts.startShift()
+        let shift = try #require(shifts.activeShift)
+        shifts.addPayout(15, platform: .instacart, receivedAt: .now, to: shift)
+        shifts.endShift()
 
         shifts.deletePayout(shift.payouts[0])
         #expect(shift.payouts.count == 1)
