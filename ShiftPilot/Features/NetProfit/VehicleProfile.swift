@@ -1,5 +1,4 @@
 import Foundation
-import Observation
 
 /// The driver's car, for estimating what each mile actually costs.
 ///
@@ -62,37 +61,5 @@ struct VehicleProfile: Codable, Equatable, Sendable {
     /// Cost per mile or km in the profile's own units, for display.
     var costPerDistance: Decimal? {
         costPerMeter.map { $0 * Decimal(units.metersPerDistance) }
-    }
-}
-
-/// Persists the vehicle profile in UserDefaults.
-@MainActor
-@Observable
-final class VehicleStore {
-    private static let key = "vehicleProfile"
-
-    var profile: VehicleProfile {
-        didSet { save() }
-    }
-
-    @ObservationIgnored private let defaults: UserDefaults
-
-    init(defaults: UserDefaults = .standard) {
-        self.defaults = defaults
-        if let data = defaults.data(forKey: Self.key),
-           let saved = try? JSONDecoder().decode(VehicleProfile.self, from: data) {
-            profile = saved
-        } else {
-            let unit = defaults.string(forKey: DistanceUnit.storageKey).flatMap(DistanceUnit.init(rawValue:)) ?? .localeDefault
-            profile = VehicleProfile(units: VehicleProfile.Units(unit))
-        }
-    }
-
-    var costPerMeter: Decimal? { profile.costPerMeter }
-
-    private func save() {
-        if let data = try? JSONEncoder().encode(profile) {
-            defaults.set(data, forKey: Self.key)
-        }
     }
 }

@@ -23,7 +23,7 @@ struct NetProfitSection: View {
                 LabeledContent("Net per hour", value: Format.rate(snapshot.netHourlyRate, per: "hr"))
             } else {
                 NavigationLink {
-                    VehicleSettingsView()
+                    GarageView()
                 } label: {
                     Label("Set up your vehicle to see net profit", systemImage: "fuelpump.fill")
                 }

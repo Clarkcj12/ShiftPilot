@@ -32,6 +32,8 @@ Give gig drivers an automated, zero-friction tool to track their true earnings, 
 | **Maintenance Alerts** | Tie tracked miles to a service schedule (e.g. "5,000 gig miles: schedule oil change"). | ⏳ Not started |
 | **Dead Mile Triage** | Swipe a completed trip segment to flag it as a Dead Mile (returning with no order); visualize unprofitable return zones on a map. | ⏳ Not started |
 
+| **Garage** | Vehicles with VIN, plate, registration and insurance; odometer log; fill-ups and vehicle expenses. | 🚧 Step 1 shipped: multiple vehicles, VIN decode (NHTSA vPIC, VIN only, no key), plate/registration/insurance with expiry warnings, odometer readings, running costs per vehicle, trips linked to a vehicle. Next: fill-up log (real MPG and price), then expenses. |
+
 Also shipped (not in the original PRD): a Miles/Kilometers display setting.
 
 ## 5. Technical stack
@@ -68,7 +70,11 @@ Live local prices need a third-party provider, which usually requires a paid API
 1. ~~**Shifts and earnings.**~~ Done.
 2. ~~**IRS Tax Calculator & Quarterly Vault**~~ Done. Rates live in `TaxTables.swift`; update it each December.
 3. ~~**Net Profit Engine**~~ Done with user-entered gas price and MPG; live prices later.
-4. **AI Expense Scanner** (Vision text recognition and an `Expense` model).
+4. **Garage**, replacing a standalone scanner and maintenance feature:
+   1. ~~Vehicle profiles, VIN, plate, insurance, odometer.~~ Done.
+   2. Fill-up log: real MPG and price per gallon feeding net profit. Fall back to EIA weekly state/regional average prices (free key) for drivers who don't log fill-ups.
+   3. Vehicle expenses with tax treatment. Tolls and parking are deductible on top of the standard mileage rate; fuel, maintenance and insurance are already covered by it (count them only under the actual-expense method).
+   4. **AI Expense Scanner** (Vision text recognition) creating expenses from receipt photos.
 5. **Maintenance Alerts** (odometer offset, service intervals, local notifications).
 6. **Dead Mile Triage** (trip segments and a MapKit visualization).
 7. **CarPlay Dashboard.** The code can be written any time, but it can't run in a car until Apple grants the entitlement.

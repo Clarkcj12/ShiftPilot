@@ -5,7 +5,7 @@ struct DashboardView: View {
     @Environment(AutoDriveDetectionManager.self) private var autoDrive
     @Environment(MileageTracker.self) private var tracker
     @Environment(PermissionsManager.self) private var permissions
-    @Environment(VehicleStore.self) private var vehicle
+    @Environment(GarageStore.self) private var garage
     @Query(sort: \Trip.startedAt, order: .reverse) private var trips: [Trip]
     @Query(sort: \Shift.startedAt, order: .reverse) private var shifts: [Shift]
     @AppStorage(DistanceUnit.storageKey) private var unit: DistanceUnit = .localeDefault
@@ -41,7 +41,7 @@ struct DashboardView: View {
                 }
 
                 Section("Today") {
-                    let today = todayShifts.map { $0.snapshot(costPerMeter: vehicle.costPerMeter) }
+                    let today = todayShifts.map { $0.snapshot(costPerMeter: garage.costPerMeter) }
                     let gross = today.reduce(Decimal(0)) { $0 + $1.gross }
                     let seconds = today.reduce(0) { $0 + $1.duration }
                     LabeledContent("Earnings", value: Format.money(gross))

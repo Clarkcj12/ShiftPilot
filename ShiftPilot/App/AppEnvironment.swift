@@ -10,14 +10,14 @@ final class AppEnvironment {
     let tracker: MileageTracker
     let autoDrive: AutoDriveDetectionManager
     let shifts: ShiftManager
-    let vehicle: VehicleStore
+    let garage: GarageStore
 
     private let recorder: TripRecorder
     private let waker = SignificantLocationWaker()
 
     init() {
         do {
-            modelContainer = try ModelContainer(for: Trip.self, TripPoint.self, Shift.self, Payout.self, TaxPayment.self)
+            modelContainer = try ModelContainer(for: Trip.self, TripPoint.self, Shift.self, Payout.self, TaxPayment.self, Vehicle.self, OdometerReading.self)
         } catch {
             fatalError("Could not create the trip store: \(error)")
         }
@@ -27,12 +27,12 @@ final class AppEnvironment {
         bleMonitor = BLEAccessoryMonitor(devices: knownDevices)
         let shifts = ShiftManager(context: modelContainer.mainContext)
         self.shifts = shifts
-        let vehicle = VehicleStore()
-        self.vehicle = vehicle
+        let garage = GarageStore(context: modelContainer.mainContext)
+        self.garage = garage
         recorder = TripRecorder(
             context: modelContainer.mainContext,
             currentShift: { shifts.activeShift },
-            costPerMeter: { vehicle.costPerMeter }
+            currentVehicle: { garage.current }
         )
         tracker = MileageTracker(recorder: recorder)
         autoDrive = AutoDriveDetectionManager(

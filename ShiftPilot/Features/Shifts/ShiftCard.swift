@@ -33,14 +33,14 @@ private struct ActiveShiftCard: View {
     let shift: Shift
 
     @Environment(ShiftManager.self) private var shifts
-    @Environment(VehicleStore.self) private var vehicle
+    @Environment(GarageStore.self) private var garage
     @AppStorage(DistanceUnit.storageKey) private var unit: DistanceUnit = .localeDefault
     @State private var isAddingPayout = false
     @State private var isConfirmingEnd = false
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 30)) { context in
-            let snapshot = shift.snapshot(now: context.date, costPerMeter: vehicle.costPerMeter)
+            let snapshot = shift.snapshot(now: context.date, costPerMeter: garage.costPerMeter)
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
                     Label("On shift", systemImage: "clock.fill")

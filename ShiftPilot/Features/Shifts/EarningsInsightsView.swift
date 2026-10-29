@@ -20,13 +20,13 @@ struct EarningsInsightsView: View {
     }
 
     @Query(sort: \Shift.startedAt, order: .reverse) private var shifts: [Shift]
-    @Environment(VehicleStore.self) private var vehicle
+    @Environment(GarageStore.self) private var garage
     @State private var period: Period = .month
 
     var body: some View {
         let snapshots = shifts
             .filter { shift in period.cutoff.map { shift.startedAt >= $0 } ?? true }
-            .map { $0.snapshot(costPerMeter: vehicle.costPerMeter) }
+            .map { $0.snapshot(costPerMeter: garage.costPerMeter) }
         let gross = snapshots.reduce(Decimal(0)) { $0 + $1.gross }
         let seconds = snapshots.reduce(0) { $0 + $1.duration }
 

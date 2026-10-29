@@ -29,28 +29,30 @@ struct VehicleProfileTests {
 struct NetProfitTests {
     private func makeContext() throws -> ModelContext {
         let container = try ModelContainer(
-            for: Trip.self, TripPoint.self, Shift.self, Payout.self,
+            for: Trip.self, TripPoint.self, Shift.self, Payout.self, Vehicle.self, OdometerReading.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true)
         )
         return ModelContext(container)
     }
 
-    @Test func recorderCapturesCostOnEachTrip() throws {
+    @Test func recorderCapturesVehicleAndCostOnEachTrip() throws {
         let context = try makeContext()
-        let vehicle = VehicleStore(defaults: UserDefaults(suiteName: #function)!)
-        vehicle.profile = VehicleProfile(units: .metric, fuelEconomy: 10, fuelPrice: 10)  // $0.001/m
-        let recorder = TripRecorder(context: context, costPerMeter: { vehicle.costPerMeter })
+        let garage = GarageStore(context: context, defaults: UserDefaults(suiteName: #function)!)
+        let car = garage.addVehicle(units: .metric)
+        car.profile = VehicleProfile(units: .metric, fuelEconomy: 10, fuelPrice: 10)  // $0.001/m
+        let recorder = TripRecorder(context: context, currentVehicle: { garage.current })
 
         recorder.begin(trigger: .manual, at: .now)
         recorder.confirm()
         recorder.finish(at: .now)
-        vehicle.profile.fuelPrice = nil
+        car.fuelPrice = nil
         recorder.begin(trigger: .manual, at: .now.addingTimeInterval(1))
         recorder.confirm()
         recorder.finish(at: .now)
 
         let trips = try context.fetch(FetchDescriptor<Trip>(sortBy: [SortDescriptor(\.startedAt)]))
         #expect(trips.map(\.vehicleCostPerMeter) == [Decimal(string: "0.001"), nil])
+        #expect(trips.allSatisfy { $0.vehicle == car })
     }
 
     @Test func shiftNetProfitUsesTripCostThenFallback() throws {

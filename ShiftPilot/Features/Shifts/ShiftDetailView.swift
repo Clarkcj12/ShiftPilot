@@ -5,7 +5,7 @@ struct ShiftDetailView: View {
 
     @Environment(ShiftManager.self) private var shifts
     @Environment(\.dismiss) private var dismiss
-    @Environment(VehicleStore.self) private var vehicle
+    @Environment(GarageStore.self) private var garage
     @AppStorage(DistanceUnit.storageKey) private var unit: DistanceUnit = .localeDefault
     @State private var isAddingPayout = false
     @State private var editingPayout: Payout?
@@ -15,7 +15,7 @@ struct ShiftDetailView: View {
     @State private var deleteOnDisappear = false
 
     var body: some View {
-        let snapshot = shift.snapshot(costPerMeter: vehicle.costPerMeter)
+        let snapshot = shift.snapshot(costPerMeter: garage.costPerMeter)
         let payouts = shift.payouts.sorted { $0.receivedAt > $1.receivedAt }
         let trips = shift.trips.sorted { $0.startedAt > $1.startedAt }
 

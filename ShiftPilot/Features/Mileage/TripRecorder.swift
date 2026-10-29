@@ -9,7 +9,7 @@ import SwiftData
 final class TripRecorder {
     private let context: ModelContext
     private let currentShift: @MainActor () -> Shift?
-    private let costPerMeter: @MainActor () -> Decimal?
+    private let currentVehicle: @MainActor () -> Vehicle?
     private var pending: (startedAt: Date, trigger: TripTrigger)?
     private var buffer: [(location: CLLocation, delta: Double)] = []
     private var trip: Trip?
@@ -18,15 +18,16 @@ final class TripRecorder {
     private let saveEvery = 20
 
     /// - Parameter currentShift: the shift a newly confirmed trip should belong to.
-    /// - Parameter costPerMeter: the vehicle's fuel + wear cost, captured on each new trip.
+    /// - Parameter currentVehicle: the car new trips are logged against; its fuel + wear
+    ///   cost is captured on each trip.
     init(
         context: ModelContext,
         currentShift: @escaping @MainActor () -> Shift? = { nil },
-        costPerMeter: @escaping @MainActor () -> Decimal? = { nil }
+        currentVehicle: @escaping @MainActor () -> Vehicle? = { nil }
     ) {
         self.context = context
         self.currentShift = currentShift
-        self.costPerMeter = costPerMeter
+        self.currentVehicle = currentVehicle
     }
 
     func begin(trigger: TripTrigger, at date: Date) {
@@ -51,7 +52,10 @@ final class TripRecorder {
         guard trip == nil, let pending else { return }
         let trip = Trip(startedAt: pending.startedAt, trigger: pending.trigger)
         context.insert(trip)
-        trip.vehicleCostPerMeter = costPerMeter()
+        if let vehicle = currentVehicle() {
+            trip.vehicle = vehicle
+            trip.vehicleCostPerMeter = vehicle.profile.costPerMeter
+        }
         if let shift = currentShift() {
             trip.shift = shift
             trip.purpose = .business

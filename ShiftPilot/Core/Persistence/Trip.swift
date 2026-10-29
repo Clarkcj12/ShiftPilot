@@ -27,6 +27,7 @@ final class Trip {
     /// Fuel + wear per meter when the trip was recorded, so later price changes don't
     /// rewrite past shifts. nil if no vehicle was set up yet.
     var vehicleCostPerMeter: Decimal? = nil
+    var vehicle: Vehicle?
 
     @Relationship(deleteRule: .cascade, inverse: \TripPoint.trip)
     var points: [TripPoint] = []
