@@ -165,7 +165,8 @@ struct VehicleDetailView: View {
     /// Shows the price in use as the placeholder, so an empty field doesn't look like $0.
     private func pricePlaceholder(_ source: FuelPriceSource) -> String {
         switch source {
-        case .fillUp(let price, _), .regional(let price, _): Format.fuelPrice(price)
+        // The field shows its own currency symbol, so the placeholder is just the number.
+        case .fillUp(let price, _), .regional(let price, _): price.formatted(.number.precision(.fractionLength(2...3)))
         case .entered, .none: "0.00"
         }
     }
