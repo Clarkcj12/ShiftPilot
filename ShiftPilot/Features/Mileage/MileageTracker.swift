@@ -34,12 +34,6 @@ final class MileageTracker: NSObject, TripTracking {
     /// Replayed standby fixes are distance only; they aren't live speed readings.
     @ObservationIgnored private var isBackfilling = false
 
-    /// Readings worse than this are dropped.
-    private let maxHorizontalAccuracy: CLLocationDistance = 50
-    /// Implied speeds above this (~155 mph) are GPS glitches.
-    private let maxPlausibleSpeed: CLLocationSpeed = 70
-    /// Points closer than this to the last accepted point are skipped (GPS jitter while slow or parked).
-    private let minStep: CLLocationDistance = 10
     /// How far back standby fixes are kept for backfilling a trip's start.
     private let standbyWindow: TimeInterval = 180
     /// A backfill starts from the last fix at or below this (~5.6 mph), above walking pace,
@@ -68,7 +62,7 @@ final class MileageTracker: NSObject, TripTracking {
         lastAccepted = nil
         let backfill = Self.backfill(standbyFixes, startSpeed: backfillStartSpeed)
         standbyFixes = []
-        recorder.begin(trigger: trigger, at: backfill.first?.timestamp ?? .now)
+        recorder.begin(trigger: trigger, at: Self.tripStart(backfill) ?? .now)
         isBackfilling = true
         backfill.forEach(ingest)
         isBackfilling = false
@@ -93,6 +87,15 @@ final class MileageTracker: NSObject, TripTracking {
         return Array(fixes[lastParked...])
     }
 
+    /// iOS sends few fixes while parked, so the parked fix can be minutes older than the
+    /// first moving one. It's kept for where the trip began, but the start time is at most
+    /// `maxParkedLead` before the car was first seen moving.
+    static func tripStart(_ backfill: [CLLocation], maxParkedLead: TimeInterval = 30) -> Date? {
+        guard let parked = backfill.first else { return nil }
+        guard backfill.count > 1 else { return parked.timestamp }
+        return max(parked.timestamp, backfill[1].timestamp.addingTimeInterval(-maxParkedLead))
+    }
+
     private func startUpdates() {
         // Requires the `location` background mode; set here, not in init, so it's only on
         // during trips and shifts.
@@ -106,7 +109,7 @@ final class MileageTracker: NSObject, TripTracking {
     }
 
     private func standBy(with location: CLLocation) {
-        guard location.horizontalAccuracy >= 0, location.horizontalAccuracy <= maxHorizontalAccuracy else { return }
+        guard location.horizontalAccuracy >= 0, location.horizontalAccuracy <= Self.maxHorizontalAccuracy else { return }
         standbyFixes.append(location)
         standbyFixes.removeAll { location.timestamp.timeIntervalSince($0.timestamp) > standbyWindow }
         if location.speed >= 0 { onSpeed?(location.speed) }
@@ -133,27 +136,60 @@ final class MileageTracker: NSObject, TripTracking {
     }
 
     private func ingest(_ location: CLLocation) {
-        guard location.horizontalAccuracy >= 0, location.horizontalAccuracy <= maxHorizontalAccuracy else { return }
+        let step = Self.step(from: lastAccepted, to: location)
+        if let speed = step.speed, !isBackfilling { onSpeed?(speed) }
+        if let delta = step.delta { accept(location, delta: delta) }
+    }
 
-        guard let last = lastAccepted else {
-            if location.speed >= 0, !isBackfilling { onSpeed?(location.speed) }
-            accept(location, delta: 0)
-            return
+    struct Step: Equatable {
+        /// The speed reading to feed the detector, if the fix is usable.
+        var speed: CLLocationSpeed?
+        /// Distance to add if the fix becomes the new last accepted point.
+        var delta: CLLocationDistance?
+    }
+
+    /// Readings worse than this are dropped.
+    static let maxHorizontalAccuracy: CLLocationDistance = 50
+    /// Implied speeds above this (~155 mph) are GPS glitches.
+    static let maxPlausibleSpeed: CLLocationSpeed = 70
+    /// Points closer than this to the last accepted point are skipped (GPS jitter while slow or parked).
+    static let minStep: CLLocationDistance = 10
+    /// Fixes below this (~5.6 mph) aren't added point by point: a walk around a store with
+    /// the trip still open would zigzag up distance. The last accepted point stays put, so
+    /// when the car moves off the slow stretch counts as the straight line across it.
+    static let minCountedSpeed: CLLocationSpeed = 2.5
+
+    /// How one fix changes the trip. `last` only advances on accepted points, so skipped
+    /// jitter and slow stretches aren't lost distance; they're measured from `last`.
+    static func step(from last: CLLocation?, to location: CLLocation) -> Step {
+        guard location.horizontalAccuracy >= 0, location.horizontalAccuracy <= maxHorizontalAccuracy else { return Step() }
+        guard let last else {
+            return Step(speed: location.speed >= 0 ? location.speed : nil, delta: 0)
         }
 
         let delta = location.distance(from: last)
         let elapsed = location.timestamp.timeIntervalSince(last.timestamp)
-        guard elapsed > 0 else { return }
+        guard elapsed > 0 else { return Step() }
         let impliedSpeed = delta / elapsed
-        guard impliedSpeed <= maxPlausibleSpeed else { return }
+        guard impliedSpeed <= maxPlausibleSpeed else { return Step() }
 
-        if !isBackfilling {
-            onSpeed?(location.speed >= 0 ? location.speed : impliedSpeed)
+        let speed = location.speed >= 0 ? location.speed : impliedSpeed
+        let isSlow = location.speed >= 0 && location.speed < minCountedSpeed
+        guard !isSlow, delta >= max(minStep, location.horizontalAccuracy) else { return Step(speed: speed) }
+        return Step(speed: speed, delta: delta)
+    }
+
+    /// Total distance of fixes run through `step`, for tests.
+    static func distance(of fixes: [CLLocation]) -> CLLocationDistance {
+        var last: CLLocation?
+        var total: CLLocationDistance = 0
+        for fix in fixes {
+            if let delta = step(from: last, to: fix).delta {
+                total += delta
+                last = fix
+            }
         }
-
-        // `lastAccepted` only advances on accepted points, so skipped jitter isn't lost distance.
-        guard delta >= max(minStep, location.horizontalAccuracy) else { return }
-        accept(location, delta: delta)
+        return total
     }
 
     private func accept(_ location: CLLocation, delta: CLLocationDistance) {
