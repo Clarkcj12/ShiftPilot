@@ -110,8 +110,9 @@ enum EarningsCalculator {
             .sorted { ($0.hourlyRate ?? -1) > ($1.hourlyRate ?? -1) }
     }
 
-    /// Earnings per time of day. Shift time is split across dayparts; pay is bucketed
-    /// by when each payout was received.
+    /// Earnings per time of day. Shift time is split across dayparts. Each payout pays for
+    /// the work since the previous payout (or the shift start), so it's spread over the
+    /// dayparts of that stretch by time, not dropped whole into the minute it was logged.
     static func byDaypart(_ shifts: [ShiftSnapshot], calendar: Calendar = .current) -> [EarningsBreakdown<Daypart>] {
         var gross: [Daypart: Decimal] = [:]
         var seconds: [Daypart: TimeInterval] = [:]
@@ -119,14 +120,44 @@ enum EarningsCalculator {
             for (hour, duration) in secondsByHourOfDay(from: shift.start, to: shift.end, calendar: calendar) {
                 seconds[Daypart(hour: hour), default: 0] += duration
             }
-            for payout in shift.payouts {
-                gross[Daypart(hour: calendar.component(.hour, from: payout.receivedAt)), default: 0] += payout.amount
+            for (daypart, amount) in payByDaypart(shift, calendar: calendar) {
+                gross[daypart, default: 0] += amount
             }
         }
         return Daypart.allCases.compactMap { daypart in
             guard seconds[daypart] != nil || gross[daypart] != nil else { return nil }
             return EarningsBreakdown(key: daypart, gross: gross[daypart] ?? 0, seconds: seconds[daypart] ?? 0)
         }
+    }
+
+    /// A shift's pay per daypart. Payout times are clamped to the shift, and payouts at the
+    /// same moment share one stretch.
+    static func payByDaypart(_ shift: ShiftSnapshot, calendar: Calendar) -> [Daypart: Decimal] {
+        let byTime = Dictionary(grouping: shift.payouts) { min(max($0.receivedAt, shift.start), max(shift.start, shift.end)) }
+        var result: [Daypart: Decimal] = [:]
+        var stretchStart = shift.start
+        for time in byTime.keys.sorted() {
+            let amount = byTime[time, default: []].reduce(Decimal(0)) { $0 + $1.amount }
+            var split: [Daypart: TimeInterval] = [:]
+            for (hour, duration) in secondsByHourOfDay(from: stretchStart, to: time, calendar: calendar) {
+                split[Daypart(hour: hour), default: 0] += duration
+            }
+            let total = split.values.reduce(0, +)
+            if total > 0 {
+                // The last daypart takes the remainder so the split adds up to the payout exactly.
+                let dayparts = split.keys.sorted { $0.rawValue < $1.rawValue }
+                var allocated: Decimal = 0
+                for (index, daypart) in dayparts.enumerated() {
+                    let share = index == dayparts.count - 1 ? amount - allocated : amount * Decimal(split[daypart]!) / Decimal(total)
+                    allocated += share
+                    result[daypart, default: 0] += share
+                }
+            } else {
+                result[Daypart(hour: calendar.component(.hour, from: time)), default: 0] += amount
+            }
+            stretchStart = time
+        }
+        return result
     }
 
     /// How many seconds of `start..<end` fall in each clock hour (0–23).

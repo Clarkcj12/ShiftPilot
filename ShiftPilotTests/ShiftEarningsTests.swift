@@ -60,7 +60,8 @@ struct EarningsCalculatorTests {
         #expect(split == [23: 1800, 0: 3600])
     }
 
-    @Test func daypartsSplitShiftTimeAndBucketPayoutsByTime() {
+    @Test func payoutsAreSpreadOverTheStretchTheyPaidFor() {
+        // $10 for 16:00–16:30 (afternoon); $30 for 16:30–17:30, half afternoon, half dinner.
         let shift = ShiftSnapshot(
             start: date(16), end: date(18),
             payouts: [payout(.doorDash, 10, at: 16, 30), payout(.doorDash, 30, at: 17, 30)],
@@ -68,8 +69,37 @@ struct EarningsCalculatorTests {
         )
         let rows = EarningsCalculator.byDaypart([shift], calendar: utc)
         #expect(rows.map(\.key) == [.afternoon, .dinner])
-        #expect(rows[0].hourlyRate == 10)
-        #expect(rows[1].hourlyRate == 30)
+        #expect(rows[0].gross == 25)
+        #expect(rows[0].hourlyRate == 25)
+        #expect(rows[1].gross == 15)
+        #expect(rows[1].hourlyRate == 15)
+    }
+
+    @Test func shiftCrossingIntoDinnerDoesntInflateTheShortSide() throws {
+        // 4:43–5:11 PM, one $30 payout at the end: both sides earn the shift's own rate.
+        let shift = ShiftSnapshot(
+            start: date(16, 43), end: date(17, 11),
+            payouts: [payout(.doorDash, 30, at: 17, 11)],
+            distanceMeters: 0
+        )
+        let rows = EarningsCalculator.byDaypart([shift], calendar: utc)
+        let rate = try #require(shift.hourlyRate)
+        #expect(rows.map(\.key) == [.afternoon, .dinner])
+        for row in rows {
+            let diff = NSDecimalNumber(decimal: (row.hourlyRate ?? 0) - rate).doubleValue
+            #expect(abs(diff) < 0.0001)
+        }
+        #expect(rows.reduce(Decimal(0)) { $0 + $1.gross } == 30)
+    }
+
+    @Test func payoutsLoggedAfterTheShiftCountAsItsEnd() {
+        let shift = ShiftSnapshot(
+            start: date(16), end: date(18),
+            payouts: [payout(.doorDash, 20, at: 20), payout(.uber, 20, at: 20)],
+            distanceMeters: 0
+        )
+        let rows = EarningsCalculator.byDaypart([shift], calendar: utc)
+        #expect(rows.map(\.gross) == [20, 20])
     }
 
     @Test func daypartBoundaries() {

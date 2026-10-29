@@ -102,7 +102,7 @@ struct EarningsInsightsView: View {
         } header: {
             Text("By time of day")
         } footer: {
-            Text("Pay is grouped by when each payout was received, so log payouts as they come in for the most accurate picture.")
+            Text("Each payout is spread over the time since your previous one, so log payouts as they come in for the most accurate picture.")
         }
     }
 }
