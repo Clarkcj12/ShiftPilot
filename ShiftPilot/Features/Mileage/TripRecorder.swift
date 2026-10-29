@@ -44,7 +44,10 @@ final class TripRecorder {
         guard trip == nil, let pending else { return }
         let trip = Trip(startedAt: pending.startedAt, trigger: pending.trigger)
         context.insert(trip)
-        trip.shift = currentShift()
+        if let shift = currentShift() {
+            trip.shift = shift
+            trip.purpose = .business
+        }
         for (location, delta) in buffer {
             insertPoint(location, distanceDelta: delta, into: trip)
         }

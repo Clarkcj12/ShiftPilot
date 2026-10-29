@@ -1,6 +1,20 @@
 import Foundation
 import SwiftData
 
+/// Whether a trip counts as business mileage.
+enum TripPurpose: String, CaseIterable, Identifiable, Codable, Sendable {
+    case business, personal
+
+    var id: Self { self }
+
+    var name: String {
+        switch self {
+        case .business: "Business"
+        case .personal: "Personal"
+        }
+    }
+}
+
 @Model
 final class Trip {
     var startedAt: Date
@@ -8,6 +22,8 @@ final class Trip {
     var distanceMeters: Double
     var triggerRawValue: String
     var shift: Shift?
+    /// nil until classified. Trips logged on a shift start as business; others wait for the driver.
+    var purposeRawValue: String? = nil
 
     @Relationship(deleteRule: .cascade, inverse: \TripPoint.trip)
     var points: [TripPoint] = []
@@ -21,6 +37,11 @@ final class Trip {
     var trigger: TripTrigger? { TripTrigger(rawValue: triggerRawValue) }
     var miles: Double { distanceMeters / 1609.344 }
     var isActive: Bool { endedAt == nil }
+
+    var purpose: TripPurpose? {
+        get { purposeRawValue.flatMap(TripPurpose.init(rawValue:)) }
+        set { purposeRawValue = newValue?.rawValue }
+    }
 }
 
 @Model

@@ -30,6 +30,9 @@ final class ShiftManager {
         let openTrips = (try? context.fetch(FetchDescriptor<Trip>(predicate: #Predicate { $0.endedAt == nil }))) ?? []
         for trip in openTrips where trip.shift == nil {
             trip.shift = shift
+            if trip.purpose == nil {
+                trip.purpose = .business
+            }
         }
 
         activeShift = shift
@@ -63,6 +66,14 @@ final class ShiftManager {
         let payout = Payout(amount: amount, platform: platform, receivedAt: receivedAt, note: note)
         context.insert(payout)
         payout.shift = shift
+        save()
+    }
+
+    func updatePayout(_ payout: Payout, amount: Decimal, platform: GigPlatform, receivedAt: Date, note: String) {
+        payout.amount = amount
+        payout.platformRawValue = platform.rawValue
+        payout.receivedAt = receivedAt
+        payout.note = note
         save()
     }
 

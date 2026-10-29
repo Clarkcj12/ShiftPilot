@@ -45,7 +45,7 @@ final class Shift {
             start: startedAt,
             end: endedAt ?? now,
             payouts: payouts.map { PayoutSnapshot(platform: $0.platform, amount: $0.amount, receivedAt: $0.receivedAt) },
-            distanceMeters: trips.reduce(0) { $0 + $1.distanceMeters }
+            distanceMeters: trips.filter { $0.purpose != .personal }.reduce(0) { $0 + $1.distanceMeters }
         )
     }
 }

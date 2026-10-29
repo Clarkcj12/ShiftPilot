@@ -168,4 +168,82 @@ struct ShiftManagerTests {
         shifts.deletePayout(shift.payouts[0])
         #expect(shift.payouts.count == 1)
     }
+
+    // MARK: Trip purpose
+
+    @Test func tripsConfirmedOnShiftAreBusiness() throws {
+        let context = try makeContext()
+        let shifts = ShiftManager(context: context)
+        let recorder = TripRecorder(context: context) { shifts.activeShift }
+
+        recorder.begin(trigger: .motion, at: .now)
+        recorder.confirm()
+        recorder.finish(at: .now)
+
+        shifts.startShift()
+        recorder.begin(trigger: .carPlay, at: .now)
+        recorder.confirm()
+        recorder.finish(at: .now)
+
+        let trips = try context.fetch(FetchDescriptor<Trip>(sortBy: [SortDescriptor(\.startedAt)]))
+        #expect(trips.map(\.purpose) == [nil, .business])
+    }
+
+    @Test func tripAdoptedByNewShiftIsBusiness() throws {
+        let context = try makeContext()
+        let shifts = ShiftManager(context: context)
+        let recorder = TripRecorder(context: context) { shifts.activeShift }
+
+        recorder.begin(trigger: .manual, at: .now)
+        recorder.confirm()
+        shifts.startShift()
+
+        #expect(shifts.activeShift?.trips.first?.purpose == .business)
+    }
+
+    @Test func personalTripsDontCountTowardShiftDistance() throws {
+        let context = try makeContext()
+        let shifts = ShiftManager(context: context)
+        shifts.startShift()
+        let shift = try #require(shifts.activeShift)
+
+        let work = Trip(startedAt: .now, trigger: .carPlay)
+        work.distanceMeters = 5000
+        let errand = Trip(startedAt: .now, trigger: .carPlay)
+        errand.distanceMeters = 2000
+        for trip in [work, errand] {
+            context.insert(trip)
+            trip.shift = shift
+            trip.purpose = .business
+        }
+        #expect(shift.snapshot().distanceMeters == 7000)
+
+        TripEditor.setPurpose(.personal, for: errand, in: context)
+        #expect(shift.snapshot().distanceMeters == 5000)
+    }
+
+    @Test func activeTripCannotBeDeleted() throws {
+        let context = try makeContext()
+        let trip = Trip(startedAt: .now, trigger: .manual)
+        context.insert(trip)
+
+        TripEditor.delete(trip, in: context)
+        #expect(try context.fetchCount(FetchDescriptor<Trip>()) == 1)
+
+        trip.endedAt = .now
+        TripEditor.delete(trip, in: context)
+        #expect(try context.fetchCount(FetchDescriptor<Trip>()) == 0)
+    }
+
+    @Test func payoutCanBeEdited() throws {
+        let context = try makeContext()
+        let shifts = ShiftManager(context: context)
+        shifts.startShift()
+        let shift = try #require(shifts.activeShift)
+        shifts.addPayout(12, platform: .doorDash, receivedAt: .now, to: shift)
+
+        shifts.updatePayout(shift.payouts[0], amount: 21, platform: .shipt, receivedAt: .now, note: "Typo")
+        #expect(shift.payouts[0].amount == 21)
+        #expect(shift.payouts[0].platform == .shipt)
+    }
 }

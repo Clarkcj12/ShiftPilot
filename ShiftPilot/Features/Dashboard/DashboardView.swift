@@ -64,8 +64,20 @@ struct DashboardView: View {
                 }
 
                 Section {
+                    let needsReview = trips.filter { $0.purpose == nil && !$0.isActive }.count
+                    if needsReview > 0 {
+                        NavigationLink {
+                            TripListView(filter: .review)
+                        } label: {
+                            Label(
+                                needsReview == 1 ? "1 trip needs review" : "\(needsReview) trips need review",
+                                systemImage: "questionmark.circle.fill"
+                            )
+                            .foregroundStyle(.orange)
+                        }
+                    }
                     ForEach(trips.prefix(3)) { trip in
-                        TripRow(trip: trip)
+                        TripLink(trip: trip)
                     }
                 } header: {
                     SectionHeader(title: "Recent trips") { TripListView() }
