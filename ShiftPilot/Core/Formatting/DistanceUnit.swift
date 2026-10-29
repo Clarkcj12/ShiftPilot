@@ -37,8 +37,8 @@ enum DistanceUnit: String, CaseIterable, Identifiable {
         }
     }
 
-    /// e.g. "12.3 mi"
+    /// e.g. "12.35 mi". Two decimals, so distance × the mileage rate matches the deduction shown.
     func format(meters: Double) -> String {
-        "\(value(fromMeters: meters).formatted(.number.precision(.fractionLength(1)))) \(abbreviation)"
+        "\(value(fromMeters: meters).formatted(.number.precision(.fractionLength(2)))) \(abbreviation)"
     }
 }
