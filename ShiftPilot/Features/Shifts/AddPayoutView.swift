@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 /// Adds a payout to a shift, or edits/deletes an existing one.
@@ -7,6 +8,7 @@ struct AddPayoutView: View {
 
     @Environment(ShiftManager.self) private var shifts
     @Environment(\.dismiss) private var dismiss
+    @Query private var allPayouts: [Payout]
     @AppStorage("lastPayoutPlatform") private var lastPlatform: GigPlatform = .doorDash
     @State private var platform: GigPlatform
     @State private var amount: Decimal?
@@ -37,7 +39,7 @@ struct AddPayoutView: View {
         NavigationStack {
             Form {
                 Section("Platform") {
-                    PlatformPicker(selection: $platform)
+                    PlatformPicker(selection: $platform, order: GigPlatform.ordered(byUse: allPayouts.map(\.platform)))
                 }
 
                 Section {
@@ -52,9 +54,16 @@ struct AddPayoutView: View {
                 }
 
                 Section {
-                    TextField("Customer tips", value: $tip, format: .currency(code: Format.currencyCode))
-                        .keyboardType(.decimalPad)
-                        .monospacedDigit()
+                    HStack {
+                        TextField("Customer tips", value: $tip, format: .currency(code: Format.currencyCode))
+                            .keyboardType(.decimalPad)
+                            .monospacedDigit()
+                        if tip == nil {
+                            Button("No tips") { tip = 0 }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                        }
+                    }
                 } header: {
                     Text("Tips in this payout")
                 } footer: {

@@ -9,6 +9,7 @@ struct TripDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage(DistanceUnit.storageKey) private var unit: DistanceUnit = .localeDefault
     @State private var isConfirmingDelete = false
+    @State private var isSplitting = false
     /// Deleted once the view is gone, so it never renders a deleted model.
     @State private var deleteOnDisappear = false
 
@@ -58,6 +59,14 @@ struct TripDetailView: View {
                 LabeledContent("Detected by", value: trip.sourceName)
             }
 
+            if !trip.isActive, trip.points.count > 2 {
+                Section {
+                    Button("Split trip", systemImage: "scissors") { isSplitting = true }
+                } footer: {
+                    Text("Kept logging through a long break or the drive home? Split it where you were parked.")
+                }
+            }
+
             Section {
                 Button("Delete trip", systemImage: "trash", role: .destructive) {
                     isConfirmingDelete = true
@@ -80,6 +89,9 @@ struct TripDetailView: View {
         }
         .navigationTitle(trip.startedAt.formatted(.dateTime.weekday(.wide).month().day()))
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $isSplitting) {
+            SplitTripView(trip: trip)
+        }
         .onDisappear {
             if deleteOnDisappear {
                 TripEditor.delete(trip, in: context)

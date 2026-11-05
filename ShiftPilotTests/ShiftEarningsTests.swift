@@ -293,3 +293,16 @@ struct ShiftManagerTests {
         #expect(shift.payouts[0].platform == .shipt)
     }
 }
+
+struct PlatformOrderTests {
+    @Test func mostUsedAppsComeFirstAndOtherStaysLast() {
+        let order = GigPlatform.ordered(byUse: [.shipt, .shipt, .spark, .other, .other, .other])
+        #expect(Array(order.prefix(3)) == [.shipt, .spark, .doorDash])
+        #expect(order.last == .other)
+        #expect(order.count == GigPlatform.allCases.count)
+    }
+
+    @Test func noHistoryKeepsTheUsualOrder() {
+        #expect(GigPlatform.ordered(byUse: []) == GigPlatform.allCases)
+    }
+}

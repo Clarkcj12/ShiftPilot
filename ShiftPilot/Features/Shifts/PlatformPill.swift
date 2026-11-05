@@ -55,10 +55,12 @@ struct PlatformPills: View {
 
 struct PlatformPicker: View {
     @Binding var selection: GigPlatform
+    /// Display order, e.g. the driver's most-used apps first.
+    var order: [GigPlatform] = GigPlatform.allCases
 
     var body: some View {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 8)], spacing: 8) {
-            ForEach(GigPlatform.allCases) { platform in
+            ForEach(order) { platform in
                 Button {
                     selection = platform
                 } label: {

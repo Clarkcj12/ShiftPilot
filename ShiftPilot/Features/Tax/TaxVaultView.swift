@@ -124,10 +124,15 @@ struct TaxVaultView: View {
                 Section {
                     LabeledContent("Customer tips", value: Format.money(estimate.tips))
                     LabeledContent("Deduction", value: Format.money(estimate.tipsDeduction))
+                    DisclosureGroup("Who qualifies and the limits") {
+                        Text(TaxSettings.tipsFooter)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
                 } header: {
                     Text("No tax on tips")
                 } footer: {
-                    Text(TaxSettings.tipsFooter)
+                    Text("Up to $25,000 of tips a year off your income tax, 2025–2028.")
                 }
             }
 

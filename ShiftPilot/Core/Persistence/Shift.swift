@@ -22,6 +22,17 @@ enum GigPlatform: String, CaseIterable, Identifiable, Codable, Sendable {
     }
 }
 
+extension GigPlatform {
+    /// Most-used first (by payout count), then the rest in their usual order; "Other" stays last.
+    static func ordered(byUse used: [GigPlatform]) -> [GigPlatform] {
+        let counts = Dictionary(used.map { ($0, 1) }, uniquingKeysWith: +)
+        let ranked = allCases.filter { $0 != .other }.enumerated()
+            .sorted { (counts[$0.element] ?? 0, -$0.offset) > (counts[$1.element] ?? 0, -$1.offset) }
+            .map(\.element)
+        return ranked + [.other]
+    }
+}
+
 /// A working session. Trips confirmed while a shift is active are attached to it.
 @Model
 final class Shift {

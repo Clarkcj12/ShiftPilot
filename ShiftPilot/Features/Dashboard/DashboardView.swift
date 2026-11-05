@@ -81,19 +81,23 @@ struct DashboardView: View {
                     }
                 }
 
-                Section {
-                    let needsReview = trips.filter { $0.purpose == nil && !$0.isActive }.count
-                    if needsReview > 0 {
-                        NavigationLink {
-                            TripListView(filter: .review)
-                        } label: {
-                            Label(
-                                needsReview == 1 ? "1 trip needs review" : "\(needsReview) trips need review",
-                                systemImage: "questionmark.circle.fill"
-                            )
-                            .foregroundStyle(.orange)
+                let toReview = trips.filter { $0.purpose == nil && !$0.isActive }
+                if !toReview.isEmpty {
+                    Section {
+                        ForEach(toReview.prefix(3)) { trip in
+                            ReviewTripRow(trip: trip)
                         }
+                        if toReview.count > 3 {
+                            NavigationLink("Review \(toReview.count - 3) more") { TripListView(filter: .review) }
+                        }
+                    } header: {
+                        Text("Work or personal?")
+                    } footer: {
+                        Text("Only business trips count toward your mileage deduction.")
                     }
+                }
+
+                Section {
                     ForEach(trips.prefix(3)) { trip in
                         TripLink(trip: trip)
                     }
@@ -183,6 +187,37 @@ private struct TodaySummary: View {
             }
         }
         .padding(.vertical, 6)
+    }
+}
+
+/// A trip waiting for a purpose, with one-tap Business and Personal buttons.
+private struct ReviewTripRow: View {
+    let trip: Trip
+
+    @Environment(\.modelContext) private var context
+    @AppStorage(DistanceUnit.storageKey) private var unit: DistanceUnit = .localeDefault
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text(trip.startedAt.formatted(.dateTime.weekday(.abbreviated).hour().minute()))
+                Spacer()
+                Text(unit.format(meters: trip.distanceMeters)).monospacedDigit()
+            }
+            HStack {
+                ForEach(TripPurpose.allCases) { purpose in
+                    Button(purpose.name, systemImage: purpose.symbol) {
+                        withAnimation { TripEditor.setPurpose(purpose, for: trip, in: context) }
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(purpose.color)
+                    .frame(maxWidth: .infinity)
+                }
+            }
+            .controlSize(.small)
+        }
+        .padding(.vertical, 2)
+        .sensoryFeedback(.selection, trigger: trip.purposeRawValue)
     }
 }
 

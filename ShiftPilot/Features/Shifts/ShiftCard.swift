@@ -5,6 +5,12 @@ struct ShiftCard: View {
     @Environment(ShiftManager.self) private var shifts
 
     var body: some View {
+        content
+            .sensoryFeedback(.impact(weight: .medium), trigger: shifts.activeShift != nil)
+    }
+
+    @ViewBuilder
+    private var content: some View {
         if let shift = shifts.activeShift {
             ActiveShiftCard(shift: shift)
         } else {
@@ -91,6 +97,7 @@ private struct ActiveShiftCard: View {
             }
             .padding(.vertical, 6)
         }
+        .sensoryFeedback(.success, trigger: shift.payouts.count)
         .sheet(isPresented: $isAddingPayout) {
             AddPayoutView(shift: shift)
         }
