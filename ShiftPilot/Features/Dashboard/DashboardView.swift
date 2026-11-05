@@ -46,26 +46,25 @@ struct DashboardView: View {
                     }
                 }
 
-                Section("Today") {
+                Section("So far today") {
                     let today = todayShifts.map { $0.snapshot(costPerMeter: garage.costPerMeter) }
-                    let gross = today.reduce(Decimal(0)) { $0 + $1.gross }
-                    let seconds = today.reduce(0) { $0 + $1.duration }
-                    LabeledContent("Earnings", value: Format.money(gross))
-                    LabeledContent("True EPH", value: Format.rate(EarningsCalculator.hourlyRate(gross, over: seconds), per: "hr"))
-                    if let net = NetProfit.total(today) {
-                        LabeledContent("Net profit", value: Format.money(net))
+                    if today.isEmpty && todayTrips.isEmpty {
+                        Text("Nothing logged yet today. Start a shift when you go online, or just drive: trips are logged automatically.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .padding(.vertical, 4)
+                    } else {
+                        let gross = today.reduce(Decimal(0)) { $0 + $1.gross }
+                        let seconds = today.reduce(0) { $0 + $1.duration }
+                        TodaySummary(tiles: [
+                            .init(title: "Earned", value: Format.money(gross)),
+                            .init(title: "True EPH", value: Format.rate(EarningsCalculator.hourlyRate(gross, over: seconds), per: "hr")),
+                            .init(title: "Net profit", value: NetProfit.total(today).map(Format.money) ?? "—"),
+                            .init(title: "Business", value: unit.format(meters: todayBusinessMeters), caption: "of \(unit.format(meters: todayMeters))"),
+                            .init(title: "Deduction", value: Format.money(todayDeduction), caption: "× \(TaxTables.rateLabel(on: .now))"),
+                            .init(title: "Trips", value: "\(todayTrips.count)"),
+                        ])
                     }
-                    LabeledContent("Distance", value: unit.format(meters: todayMeters))
-                    LabeledContent("Business distance", value: unit.format(meters: todayBusinessMeters))
-                    LabeledContent("Mileage deduction") {
-                        VStack(alignment: .trailing, spacing: 0) {
-                            Text(Format.money(todayDeduction))
-                            Text("Business miles × \(TaxTables.rateLabel(on: .now))")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    LabeledContent("Trips", value: "\(todayTrips.count)")
                 }
 
                 if !shifts.isEmpty {
@@ -102,24 +101,14 @@ struct DashboardView: View {
                     SectionHeader(title: "Recent trips") { TripListView() }
                 }
             }
-            .navigationTitle("ShiftPilot")
+            .navigationTitle("Today")
             .sheet(isPresented: $isLoggingFillUp) {
                 if let vehicle = garage.current {
                     FillUpEditorView(vehicle: vehicle)
                 }
             }
             .toolbar {
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    NavigationLink {
-                        TaxVaultView()
-                    } label: {
-                        Label("Taxes", systemImage: "building.columns")
-                    }
-                    NavigationLink {
-                        EarningsInsightsView()
-                    } label: {
-                        Label("Insights", systemImage: "chart.bar.xaxis")
-                    }
+                ToolbarItem(placement: .topBarTrailing) {
                     NavigationLink {
                         SettingsView()
                     } label: {
@@ -156,6 +145,44 @@ struct DashboardView: View {
         let business = todayBusinessTrips
             .map { TaxMileage(meters: $0.distanceMeters, date: $0.startedAt) }
         return TaxCalculator.round(business.reduce(0) { $0 + TaxCalculator.deduction(for: $1) })
+    }
+}
+
+/// The day's numbers as a grid: three across, two at accessibility text sizes.
+private struct TodaySummary: View {
+    struct Tile: Identifiable {
+        var title: String
+        var value: String
+        var caption: String? = nil
+        var id: String { title }
+    }
+
+    let tiles: [Tile]
+
+    @Environment(\.dynamicTypeSize) private var typeSize
+
+    var body: some View {
+        let columns = Array(repeating: GridItem(.flexible(), spacing: 12, alignment: .topLeading), count: typeSize.isAccessibilitySize ? 2 : 3)
+        LazyVGrid(columns: columns, alignment: .leading, spacing: 16) {
+            ForEach(tiles) { tile in
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(tile.value)
+                        .font(.headline.monospacedDigit())
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                    Text(tile.title)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if let caption = tile.caption {
+                        Text(caption)
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                .accessibilityElement(children: .combine)
+            }
+        }
+        .padding(.vertical, 6)
     }
 }
 

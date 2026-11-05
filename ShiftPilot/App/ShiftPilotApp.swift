@@ -8,7 +8,7 @@ struct ShiftPilotApp: App {
     var body: some Scene {
         let env = appDelegate.environment
         WindowGroup {
-            DashboardView()
+            RootView()
                 .environment(env.autoDrive)
                 .environment(env.tracker)
                 .environment(env.shifts)

@@ -51,7 +51,9 @@ enum SampleData {
             firstShift = firstShift ?? shift
             for (index, payout) in plan.payouts.enumerated() {
                 let received = day(plan.day, plan.start, 40 * (index + 1) % (plan.hours * 60))
-                let item = Payout(amount: Decimal(payout.1 * 2), platform: payout.0, receivedAt: received)
+                let amount = Decimal(payout.1 * 2)
+                // Roughly a third of delivery pay is customer tips.
+                let item = Payout(amount: amount, platform: payout.0, receivedAt: received, tip: TaxCalculator.round(amount * Decimal(string: "0.35")!))
                 context.insert(item)
                 item.shift = shift
             }
