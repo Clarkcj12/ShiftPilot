@@ -68,9 +68,13 @@ final class Payout {
     var receivedAt: Date
     var note: String
     var shift: Shift?
+    /// The customer-tip part of `amount`, for the qualified tips deduction. nil means not
+    /// entered (not the same as $0).
+    var tip: Decimal? = nil
 
-    init(amount: Decimal, platform: GigPlatform, receivedAt: Date, note: String = "") {
+    init(amount: Decimal, platform: GigPlatform, receivedAt: Date, note: String = "", tip: Decimal? = nil) {
         self.amount = amount
+        self.tip = tip
         self.platformRawValue = platform.rawValue
         self.receivedAt = receivedAt
         self.note = note

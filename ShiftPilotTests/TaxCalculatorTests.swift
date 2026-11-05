@@ -92,3 +92,78 @@ struct TaxCalculatorTests {
         #expect(estimate.setAside == 0)
     }
 }
+
+struct QualifiedTipsTests {
+    private var calendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        return calendar
+    }
+
+    private func date(_ year: Int, _ month: Int) -> Date {
+        calendar.date(from: DateComponents(year: year, month: month, day: 10, hour: 12))!
+    }
+
+    private func estimate(year: Int = 2026, gross: Decimal, tips: Decimal, rate: Decimal = Decimal(string: "0.12")!) -> TaxYearEstimate {
+        TaxCalculator.estimate(
+            year: year,
+            income: [TaxIncome(amount: gross, date: date(year, 3))],
+            mileage: [],
+            tips: tips > 0 ? [TaxIncome(amount: tips, date: date(year, 3))] : [],
+            incomeTaxRate: rate,
+            calendar: calendar
+        )
+    }
+
+    @Test func tipsLowerIncomeTaxButNotSelfEmploymentTax() {
+        let without = estimate(gross: 10_000, tips: 0)
+        let with = estimate(gross: 10_000, tips: 3_000)
+        #expect(with.selfEmploymentTax == without.selfEmploymentTax)
+        #expect(with.netProfit == without.netProfit)
+        #expect(with.deductions == without.deductions)
+        #expect(with.tipsDeduction == 3_000)
+        #expect(without.incomeTax - with.incomeTax == 360)
+    }
+
+    @Test func deductionIsCappedAtTwentyFiveThousand() {
+        #expect(estimate(gross: 100_000, tips: 40_000).tipsDeduction == 25_000)
+    }
+
+    @Test func deductionCantExceedProfit() {
+        // Tips larger than profit after half of SE tax: income tax goes to zero, not negative.
+        let small = estimate(gross: 1_000, tips: 1_000)
+        #expect(small.tipsDeduction < 1_000)
+        #expect(small.incomeTax == 0)
+
+        let loss = TaxCalculator.estimate(
+            year: 2026, income: [TaxIncome(amount: 100, date: date(2026, 3))],
+            mileage: [TaxMileage(meters: 1_000 * TaxCalculator.metersPerMile, date: date(2026, 3))],
+            tips: [TaxIncome(amount: 50, date: date(2026, 3))],
+            incomeTaxRate: Decimal(string: "0.12")!, calendar: calendar
+        )
+        #expect(loss.tipsDeduction == 0)
+    }
+
+    @Test func onlyAppliesForTwentyTwentyFiveThroughTwentyTwentyEight() {
+        #expect(estimate(year: 2024, gross: 10_000, tips: 1_000).tipsDeduction == 0)
+        #expect(estimate(year: 2025, gross: 10_000, tips: 1_000).tipsDeduction == 1_000)
+        #expect(estimate(year: 2028, gross: 10_000, tips: 1_000).tipsDeduction == 1_000)
+        #expect(estimate(year: 2029, gross: 10_000, tips: 1_000).tipsDeduction == 0)
+    }
+
+    @Test func zeroBracketChangesNothing() {
+        #expect(estimate(gross: 10_000, tips: 3_000, rate: 0).incomeTax == 0)
+    }
+
+    @Test func capAppliesAcrossTheYearNotPerQuarter() {
+        let estimate = TaxCalculator.estimate(
+            year: 2026,
+            income: [TaxIncome(amount: 50_000, date: date(2026, 2)), TaxIncome(amount: 50_000, date: date(2026, 10))],
+            mileage: [],
+            tips: [TaxIncome(amount: 20_000, date: date(2026, 2)), TaxIncome(amount: 20_000, date: date(2026, 10))],
+            incomeTaxRate: Decimal(string: "0.22")!, calendar: calendar
+        )
+        #expect(estimate.quarters.map(\.tipsDeduction) == [20_000, 0, 0, 5_000])
+        #expect(estimate.tips == 40_000)
+    }
+}

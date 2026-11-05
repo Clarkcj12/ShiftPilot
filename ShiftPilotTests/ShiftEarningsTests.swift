@@ -288,7 +288,7 @@ struct ShiftManagerTests {
         let shift = try #require(shifts.activeShift)
         shifts.addPayout(12, platform: .doorDash, receivedAt: .now, to: shift)
 
-        shifts.updatePayout(shift.payouts[0], amount: 21, platform: .shipt, receivedAt: .now, note: "Typo")
+        shifts.updatePayout(shift.payouts[0], amount: 21, platform: .shipt, receivedAt: .now, note: "Typo", tip: nil)
         #expect(shift.payouts[0].amount == 21)
         #expect(shift.payouts[0].platform == .shipt)
     }

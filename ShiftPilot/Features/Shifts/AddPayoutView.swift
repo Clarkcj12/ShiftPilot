@@ -10,6 +10,7 @@ struct AddPayoutView: View {
     @AppStorage("lastPayoutPlatform") private var lastPlatform: GigPlatform = .doorDash
     @State private var platform: GigPlatform
     @State private var amount: Decimal?
+    @State private var tip: Decimal?
     @State private var receivedAt: Date
     @State private var note: String
     @State private var isConfirmingDelete = false
@@ -27,6 +28,7 @@ struct AddPayoutView: View {
         let remembered = UserDefaults.standard.string(forKey: "lastPayoutPlatform").flatMap(GigPlatform.init(rawValue:))
         _platform = State(initialValue: payout?.platform ?? remembered ?? .doorDash)
         _amount = State(initialValue: payout?.amount)
+        _tip = State(initialValue: payout?.tip)
         _receivedAt = State(initialValue: payout?.receivedAt ?? latest)
         _note = State(initialValue: payout?.note ?? "")
     }
@@ -47,6 +49,21 @@ struct AddPayoutView: View {
                     Text("Amount")
                 } footer: {
                     Text("Total pay for the order or batch, including tips.")
+                }
+
+                Section {
+                    TextField("Customer tips", value: $tip, format: .currency(code: Format.currencyCode))
+                        .keyboardType(.decimalPad)
+                        .monospacedDigit()
+                } header: {
+                    Text("Tips in this payout")
+                } footer: {
+                    if isTipTooLarge {
+                        Text("Tips can't be more than the total payout.")
+                            .foregroundStyle(.red)
+                    } else {
+                        Text("Only tips customers chose to give, as shown in the app's pay breakdown. Not base pay, peak pay or promotions. Tips can lower your federal income tax (2025–2028).")
+                    }
                 }
 
                 Section {
@@ -83,7 +100,7 @@ struct AddPayoutView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save", action: save)
-                        .disabled((amount ?? 0) <= 0)
+                        .disabled((amount ?? 0) <= 0 || isTipTooLarge)
                 }
             }
             .onAppear { isAmountFocused = payout == nil }
@@ -96,12 +113,17 @@ struct AddPayoutView: View {
         .presentationDetents([.large])
     }
 
+    private var isTipTooLarge: Bool {
+        guard let tip else { return false }
+        return tip < 0 || tip > (amount ?? 0)
+    }
+
     private func save() {
-        guard let amount, amount > 0 else { return }
+        guard let amount, amount > 0, !isTipTooLarge else { return }
         if let payout {
-            shifts.updatePayout(payout, amount: amount, platform: platform, receivedAt: receivedAt, note: note)
+            shifts.updatePayout(payout, amount: amount, platform: platform, receivedAt: receivedAt, note: note, tip: tip)
         } else {
-            shifts.addPayout(amount, platform: platform, receivedAt: receivedAt, note: note, to: shift)
+            shifts.addPayout(amount, platform: platform, receivedAt: receivedAt, note: note, tip: tip, to: shift)
             lastPlatform = platform
         }
         dismiss()

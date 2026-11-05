@@ -46,7 +46,12 @@ struct ShiftDetailView: View {
                                 }
                             }
                             Spacer()
-                            Text(Format.money(payout.amount)).monospacedDigit()
+                            VStack(alignment: .trailing) {
+                                Text(Format.money(payout.amount)).monospacedDigit()
+                                if let tip = payout.tip, tip > 0 {
+                                    Text("\(Format.money(tip)) tips").font(.caption).foregroundStyle(.secondary)
+                                }
+                            }
                         }
                         .contentShape(.rect)
                     }

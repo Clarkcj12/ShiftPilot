@@ -27,6 +27,11 @@ enum TaxTables {
         2026: 184_500,
     ]
 
+    /// Qualified tips deduction (IRC §224, One Big Beautiful Bill Act): up to $25,000 a
+    /// year off income tax, not self-employment tax, for 2025 through 2028.
+    static let qualifiedTipsCap: Decimal = 25_000
+    static let qualifiedTipsYears = 2025...2028
+
     static var latestRateYear: Int { mileageRates.map(\.year).max() ?? 0 }
 
     /// The rate for a trip on `date`, or nil before the table starts. Years after the

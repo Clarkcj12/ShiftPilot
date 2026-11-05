@@ -17,6 +17,9 @@ struct QuarterEstimate: Identifiable, Sendable {
     var mileageDeduction: Decimal
     /// Tolls, parking, loan interest and other costs deductible on top of mileage.
     var otherDeductions: Decimal = 0
+    var tips: Decimal = 0
+    /// Qualified tips deduction. Lowers income tax only, so it isn't in `deductions` or net profit.
+    var tipsDeduction: Decimal = 0
     var selfEmploymentTax: Decimal
     var incomeTax: Decimal
 
@@ -37,6 +40,8 @@ struct TaxYearEstimate: Sendable {
     var otherDeductions: Decimal { quarters.reduce(0) { $0 + $1.otherDeductions } }
     var deductions: Decimal { mileageDeduction + otherDeductions }
     var netProfit: Decimal { gross - deductions }
+    var tips: Decimal { quarters.reduce(0) { $0 + $1.tips } }
+    var tipsDeduction: Decimal { quarters.reduce(0) { $0 + $1.tipsDeduction } }
     var selfEmploymentTax: Decimal { quarters.reduce(0) { $0 + $1.selfEmploymentTax } }
     var incomeTax: Decimal { quarters.reduce(0) { $0 + $1.incomeTax } }
     var setAside: Decimal { quarters.reduce(0) { $0 + $1.setAside } }
@@ -46,8 +51,9 @@ struct TaxYearEstimate: Sendable {
 ///
 /// Deliberately simple and on the safe side: self-employment tax uses the real formula,
 /// but income tax is net profit (less half of SE tax) at one marginal rate the driver
-/// picks, with no standard deduction, QBI deduction, credits or other income. It's a
-/// set-aside guide, not a tax return.
+/// picks, with no standard deduction, QBI deduction, credits or other income. Customer
+/// tips get the qualified tips deduction against income tax. It's a set-aside guide, not
+/// a tax return.
 enum TaxCalculator {
     /// Share of net profit subject to self-employment tax.
     static let netEarningsFactor = Decimal(string: "0.9235")!
@@ -60,12 +66,14 @@ enum TaxCalculator {
         income: [TaxIncome],
         mileage: [TaxMileage],
         deductions: [TaxIncome] = [],
+        tips: [TaxIncome] = [],
         incomeTaxRate: Decimal,
         calendar: Calendar = .current
     ) -> TaxYearEstimate {
         let wageBase = TaxTables.wageBase(for: year)
         var cumulativeNet: Decimal = 0
-        var previous = (se: Decimal(0), income: Decimal(0))
+        var cumulativeTips: Decimal = 0
+        var previous = (se: Decimal(0), income: Decimal(0), tips: Decimal(0))
 
         let quarters = TaxQuarter.all(in: year).map { quarter in
             let interval = quarter.interval(calendar: calendar)
@@ -74,13 +82,17 @@ enum TaxCalculator {
             let meters = trips.reduce(0) { $0 + $1.meters }
             let deduction = round(trips.reduce(Decimal(0)) { $0 + deduction(for: $1, calendar: calendar) })
             let other = round(deductions.filter { interval.contains($0.date) }.reduce(Decimal(0)) { $0 + $1.amount })
+            let quarterTips = tips.filter { interval.contains($0.date) }.reduce(Decimal(0)) { $0 + $1.amount }
 
             // Tax is progressive through the year (the Social Security cap), so each period
             // gets the change in year-to-date tax rather than tax on its own profit.
             cumulativeNet += gross - deduction - other
+            cumulativeTips += quarterTips
             let se = selfEmploymentTax(onNetProfit: cumulativeNet, wageBase: wageBase)
-            let incomeTax = max(0, cumulativeNet - se / 2) * incomeTaxRate
-            defer { previous = (se, incomeTax) }
+            let taxable = max(0, cumulativeNet - se / 2)
+            let tipsDeduction = qualifiedTipsDeduction(tips: cumulativeTips, taxableProfit: taxable, year: year)
+            let incomeTax = (taxable - tipsDeduction) * incomeTaxRate
+            defer { previous = (se, incomeTax, tipsDeduction) }
 
             return QuarterEstimate(
                 quarter: quarter,
@@ -88,11 +100,22 @@ enum TaxCalculator {
                 businessMeters: meters,
                 mileageDeduction: deduction,
                 otherDeductions: other,
+                tips: round(quarterTips),
+                tipsDeduction: round(tipsDeduction - previous.tips),
                 selfEmploymentTax: round(se - previous.se),
                 incomeTax: round(incomeTax - previous.income)
             )
         }
         return TaxYearEstimate(year: year, quarters: quarters)
+    }
+
+    /// Tips up to the yearly cap, and no more than profit after half of SE tax. For the
+    /// self-employed the limit is net income from the work; Treasury hasn't said whether
+    /// half of SE tax counts against it, so it does here (the smaller deduction).
+    /// The $150k ($300k joint) income phaseout isn't applied.
+    static func qualifiedTipsDeduction(tips: Decimal, taxableProfit: Decimal, year: Int) -> Decimal {
+        guard TaxTables.qualifiedTipsYears.contains(year) else { return 0 }
+        return max(0, min(tips, TaxTables.qualifiedTipsCap, taxableProfit))
     }
 
     static func deduction(for trip: TaxMileage, calendar: Calendar = .current) -> Decimal {

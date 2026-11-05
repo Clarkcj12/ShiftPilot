@@ -18,6 +18,9 @@ struct TaxVaultView: View {
         }.count
         let paid = TaxVault.paid(payments, in: year)
         let paidTotal = paid.values.reduce(0, +)
+        let payoutsWithoutTips = TaxTables.qualifiedTipsYears.contains(year)
+            ? payouts.filter { $0.tip == nil && Calendar.current.component(.year, from: $0.receivedAt) == year }.count
+            : 0
         let needsReview = trips.filter { $0.purpose == nil && !$0.isActive && Calendar.current.component(.year, from: $0.startedAt) == year }.count
 
         List {
@@ -68,6 +71,20 @@ struct TaxVaultView: View {
                 }
             }
 
+            if payoutsWithoutTips > 0 {
+                Section {
+                    NavigationLink {
+                        ShiftListView()
+                    } label: {
+                        Label(
+                            "Add tips to \(payoutsWithoutTips) \(payoutsWithoutTips == 1 ? "payout" : "payouts") to lower your income tax",
+                            systemImage: "dollarsign.circle.fill"
+                        )
+                        .foregroundStyle(.orange)
+                    }
+                }
+            }
+
             Section {
                 ForEach(estimate.quarters) { quarter in
                     NavigationLink {
@@ -93,11 +110,25 @@ struct TaxVaultView: View {
                 }
                 LabeledContent("Net profit", value: Format.money(estimate.netProfit))
                 LabeledContent("Self-employment tax", value: Format.money(estimate.selfEmploymentTax))
+                if estimate.tips > 0 {
+                    LabeledContent("Tips deduction", value: Format.money(estimate.tipsDeduction))
+                }
                 LabeledContent("Income tax (\(incomeTaxPercent)%)", value: Format.money(estimate.incomeTax))
             } header: {
                 Text("\(String(year)) breakdown")
             } footer: {
                 Text(rateFooter)
+            }
+
+            if TaxTables.qualifiedTipsYears.contains(year) {
+                Section {
+                    LabeledContent("Customer tips", value: Format.money(estimate.tips))
+                    LabeledContent("Deduction", value: Format.money(estimate.tipsDeduction))
+                } header: {
+                    Text("No tax on tips")
+                } footer: {
+                    Text(TaxSettings.tipsFooter)
+                }
             }
 
             Section {
@@ -178,7 +209,8 @@ enum TaxSettings {
     static let defaultIncomeTaxPercent = 12
     /// 2026 federal brackets.
     static let brackets = [0, 10, 12, 22, 24, 32, 35, 37]
-    static let disclaimer = "Estimates only, not tax advice. ShiftPilot uses the IRS standard mileage rate plus business tolls, parking and the business share of loan interest, vehicle property tax, phone and supplies, and a simplified income tax estimate without your standard deduction, credits or other income, so it usually sets aside a little more than you'll owe. Check with a tax professional or the IRS Form 1040-ES worksheet."
+    static let disclaimer = "Estimates only, not tax advice. ShiftPilot uses the IRS standard mileage rate plus business tolls, parking and the business share of loan interest, vehicle property tax, phone and supplies, the qualified tips deduction, and a simplified income tax estimate without your standard deduction, credits or other income, so it usually sets aside a little more than you'll owe. Check with a tax professional or the IRS Form 1040-ES worksheet."
+    static let tipsFooter = "Delivery and rideshare drivers can deduct up to $25,000 of customer tips a year from 2025 through 2028, on Schedule 1-A. It lowers income tax only; self-employment tax still applies to tips. The deduction can't be more than your profit from driving, shrinks if your income is over $150,000 ($300,000 married filing jointly), and isn't allowed if you're married filing separately. ShiftPilot doesn't check those, so ask a tax professional if they apply. Your 1099s may not show tips separately, so the tips you log here are your record."
 }
 
 /// Glue between SwiftData models and the pure `TaxCalculator`.
@@ -214,6 +246,9 @@ enum TaxVault {
                 .filter { $0.purpose == .business && !$0.isActive }
                 .map { TaxMileage(meters: $0.distanceMeters, date: $0.startedAt) },
             deductions: expenses.map(\.snapshot).filter { $0.deductibleAmount > 0 }.map { TaxIncome(amount: $0.deductibleAmount, date: $0.date) },
+            tips: payouts.compactMap { payout in
+                payout.tip.map { TaxIncome(amount: min(max(0, $0), payout.amount), date: payout.receivedAt) }
+            },
             incomeTaxRate: Decimal(incomeTaxPercent) / 100
         )
     }
