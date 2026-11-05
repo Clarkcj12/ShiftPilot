@@ -15,6 +15,9 @@ struct DetectionConfig: Sendable {
     var stationarySpeed: Double = 0.9
     /// How long the car must be parked, with no car signal, before the trip ends.
     var endDuration: TimeInterval = 180
+    /// A manual trip ends after the car is parked this long with no car connected, so a
+    /// forgotten Stop doesn't log the rest of the day. Long enough for a pickup or a store run.
+    var manualEndDuration: TimeInterval = 20 * 60
 }
 
 /// Where a trip's detection came from; stored on the trip.
@@ -47,7 +50,8 @@ struct DetectorState: Equatable, Sendable {
     var phase: Phase = .idle
     var connections: Set<CarConnection> = []
     var isAutomotive = false
-    /// The current trip was started by the driver; only `manualStop` ends it.
+    /// The current trip was started by the driver. It ignores the usual end rules and ends
+    /// on `manualStop`, or after `manualEndDuration` parked with no car connected.
     var isManual = false
     /// Set by `manualStop` so the car signals still present don't immediately
     /// restart a trip. Cleared once those signals go away.
@@ -99,8 +103,8 @@ enum DetectorEffect: Equatable, Sendable {
 ///     driving ──car + motion signals lost──▶ ending ──parked for endDuration──▶ idle (finish)
 ///     ending ──car reconnects / automotive again──▶ driving
 ///
-/// Manual overrides: `manualStart` goes straight to driving, and that trip only ends
-/// on `manualStop`. `manualStop` ends any trip and holds off auto-start until the
+/// Manual overrides: `manualStart` goes straight to driving, and that trip ends on
+/// `manualStop` or after `manualEndDuration` parked with no car connected. `manualStop` ends any trip and holds off auto-start until the
 /// car and motion signals clear, so the still-connected car doesn't restart it.
 enum DriveDetector {
     static func reduce(
@@ -223,6 +227,11 @@ enum DriveDetector {
             }
         case .ending:
             if let stillSince = state.stillSince, now.timeIntervalSince(stillSince) >= config.endDuration {
+                state.reset()
+                return [.finishTrip]
+            }
+        case .driving where state.isManual && state.connections.isEmpty:
+            if let stillSince = state.stillSince, now.timeIntervalSince(stillSince) >= config.manualEndDuration {
                 state.reset()
                 return [.finishTrip]
             }

@@ -203,16 +203,32 @@ struct DriveDetectorTests {
         #expect(state.phase == .driving)
     }
 
-    @Test func manualTripIgnoresAutoEnd() {
+    @Test func manualTripSurvivesAPickupButEndsWhenLeftParked() {
         var state = DetectorState()
         _ = reduce(&state, .manualStart, at: 0)
         _ = reduce(&state, .motion(stationary), at: 10)
         _ = reduce(&state, .speed(metersPerSecond: 0), at: 10)
-        #expect(reduce(&state, .tick, at: 3600).isEmpty)
+        // The normal 3-minute end doesn't apply: still going after 19 minutes parked.
+        #expect(reduce(&state, .tick, at: 10 + 19 * 60).isEmpty)
         #expect(state.phase == .driving)
 
-        #expect(reduce(&state, .manualStop, at: 3601) == [.finishTrip])
+        // Driving again resets the clock.
+        _ = reduce(&state, .speed(metersPerSecond: 12), at: 10 + 19 * 60 + 1)
+        _ = reduce(&state, .speed(metersPerSecond: 0), at: 2000)
+        #expect(reduce(&state, .tick, at: 2000 + 19 * 60).isEmpty)
+
+        #expect(reduce(&state, .tick, at: 2000 + 20 * 60) == [.finishTrip])
         #expect(state.phase == .idle)
+        #expect(!state.isManual)
+    }
+
+    @Test func manualTripWithCarConnectedWaitsForStop() {
+        var state = DetectorState()
+        _ = reduce(&state, .carConnected(.carPlay), at: 0)
+        _ = reduce(&state, .manualStart, at: 1)
+        _ = reduce(&state, .speed(metersPerSecond: 0), at: 10)
+        #expect(reduce(&state, .tick, at: 3600).isEmpty)
+        #expect(reduce(&state, .manualStop, at: 3601) == [.finishTrip])
     }
 
     @Test func manualStopDuringCandidateDiscards() {
