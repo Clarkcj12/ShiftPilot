@@ -76,7 +76,7 @@ struct AddPayoutView: View {
                 }
 
                 Section {
-                    DatePicker("Received", selection: $receivedAt, in: shift.startedAt...latestAllowed)
+                    DatePicker("Received", selection: $receivedAt, in: Date.safeRange(shift.startedAt, latestAllowed))
                     TextField("Note (optional)", text: $note)
                 }
 

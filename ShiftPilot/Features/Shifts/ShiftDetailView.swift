@@ -13,6 +13,7 @@ struct ShiftDetailView: View {
     @State private var editingExpense: Expense?
     @State private var isConfirmingEnd = false
     @State private var isConfirmingDelete = false
+    @State private var isEditingTimes = false
     /// Deleted once the view is gone, so it never renders a deleted model.
     @State private var deleteOnDisappear = false
 
@@ -22,12 +23,28 @@ struct ShiftDetailView: View {
         let trips = shift.trips.sorted { $0.startedAt > $1.startedAt }
 
         List {
-            Section("Summary") {
+            Section {
                 LabeledContent("Time", value: Format.duration(snapshot.duration))
+                if !shift.isActive {
+                    Button {
+                        isEditingTimes = true
+                    } label: {
+                        LabeledContent("Hours", value: Self.timeRange(shift))
+                    }
+                }
                 LabeledContent("Earnings", value: Format.money(snapshot.gross))
                 LabeledContent("True EPH", value: Format.rate(snapshot.hourlyRate, per: "hr"))
                 LabeledContent("Business distance", value: unit.format(meters: snapshot.distanceMeters))
                 LabeledContent("Per \(unit.abbreviation)", value: Format.rate(snapshot.earningsPerDistance(in: unit), per: unit.abbreviation))
+            } header: {
+                Text("Summary")
+            } footer: {
+                if !shift.isActive, snapshot.duration >= Self.longShift {
+                    Text("This shift ran \(Format.duration(snapshot.duration)). If it was left running, tap Hours to set when you really stopped.")
+                        .foregroundStyle(.orange)
+                } else if !shift.isActive {
+                    Text("Tap Hours to change when the shift started or ended.")
+                }
             }
 
             NetProfitSection(snapshot: snapshot)
@@ -130,6 +147,9 @@ struct ShiftDetailView: View {
         .sheet(item: $editingPayout) { payout in
             AddPayoutView(shift: shift, payout: payout)
         }
+        .sheet(isPresented: $isEditingTimes) {
+            EditShiftTimesView(shift: shift)
+        }
         .sheet(isPresented: $isAddingExpense) {
             ExpenseEditorView(shift: shift)
         }
@@ -141,5 +161,17 @@ struct ShiftDetailView: View {
                 shifts.deleteShift(shift)
             }
         }
+    }
+
+    /// Longer than any real working day; most likely left running.
+    static let longShift: TimeInterval = 14 * 60 * 60
+
+    static func timeRange(_ shift: Shift) -> String {
+        let start = shift.startedAt
+        guard let end = shift.endedAt else { return start.formatted(date: .omitted, time: .shortened) }
+        let endText = Calendar.current.isDate(start, inSameDayAs: end)
+            ? end.formatted(date: .omitted, time: .shortened)
+            : end.formatted(.dateTime.weekday(.abbreviated).hour().minute())
+        return "\(start.formatted(date: .omitted, time: .shortened)) – \(endText)"
     }
 }
