@@ -1,3 +1,4 @@
+import Charts
 import SwiftData
 import SwiftUI
 
@@ -31,8 +32,23 @@ struct EarningsInsightsView: View {
         let gross = snapshots.reduce(Decimal(0)) { $0 + $1.gross }
         let bonuses = snapshots.reduce(Decimal(0)) { $0 + $1.bonuses }
         let seconds = snapshots.reduce(0) { $0 + $1.duration }
+        let everything = shifts.filter { !$0.isActive }.map { $0.snapshot(costPerMeter: garage.costPerMeter) }
 
         List {
+            if let pace = EarningsCalculator.pace(everything) {
+                Section {
+                    PaceCard(pace: pace)
+                }
+            }
+
+            if !everything.isEmpty {
+                Section {
+                    WeeklyChart(weeks: EarningsCalculator.weekly(everything))
+                } header: {
+                    Text("Last 8 weeks")
+                }
+            }
+
             Section {
                 Picker("Period", selection: $period) {
                     ForEach(Period.allCases) { Text($0.rawValue).tag($0) }
@@ -54,6 +70,10 @@ struct EarningsInsightsView: View {
         .navigationTitle("Insights")
     }
 
+    static func best<Key>(_ rows: [EarningsBreakdown<Key>]) -> Decimal? {
+        rows.compactMap(\.hourlyRate).max()
+    }
+
     /// Business share of expenses in the period that aren't tied to a shift (insurance,
     /// phone, loan interest…); shift expenses are already in each shift's net.
     private var periodCosts: Decimal {
@@ -65,24 +85,24 @@ struct EarningsInsightsView: View {
     @ViewBuilder
     private func breakdownSections(snapshots: [ShiftSnapshot], gross: Decimal, bonuses: Decimal, seconds: TimeInterval, periodCosts: Decimal) -> some View {
         Section {
-            LabeledContent("True EPH", value: Format.rate(EarningsCalculator.hourlyRate(gross, over: seconds), per: "hr"))
+            ValueRow("True EPH", value: Format.rate(EarningsCalculator.hourlyRate(gross, over: seconds), per: "hr"), emphasized: true)
             if bonuses > 0 {
-                LabeledContent("Without rare bonuses", value: Format.rate(EarningsCalculator.hourlyRate(gross - bonuses, over: seconds), per: "hr"))
+                ValueRow("Without rare bonuses", value: Format.rate(EarningsCalculator.hourlyRate(gross - bonuses, over: seconds), per: "hr"))
             }
-            LabeledContent("Earnings", value: Format.money(gross))
+            ValueRow("Earnings", value: Format.money(gross))
             if bonuses > 0 {
-                LabeledContent("Rare bonuses", value: Format.money(bonuses))
+                ValueRow("Rare bonuses", value: Format.money(bonuses))
             }
             if let shiftNet = NetProfit.total(snapshots) {
                 let net = shiftNet - periodCosts
                 if periodCosts > 0 {
-                    LabeledContent("Other expenses", value: "−\(Format.money(TaxCalculator.round(periodCosts)))")
+                    ValueRow("Other expenses", value: "−\(Format.money(TaxCalculator.round(periodCosts)))")
                 }
-                LabeledContent("Net profit", value: Format.money(TaxCalculator.round(net)))
-                LabeledContent("Net per hour", value: Format.rate(EarningsCalculator.hourlyRate(net, over: seconds), per: "hr"))
+                ValueRow("Net profit", value: Format.money(TaxCalculator.round(net)), emphasized: true)
+                ValueRow("Net per hour", value: Format.rate(EarningsCalculator.hourlyRate(net, over: seconds), per: "hr"))
             }
-            LabeledContent("Time on shift", value: Format.duration(seconds))
-            LabeledContent("Shifts", value: "\(snapshots.count)")
+            ValueRow("Time on shift", value: Format.duration(seconds))
+            ValueRow("Shifts", value: "\(snapshots.count)")
         } header: {
             Text("Overall")
         } footer: {
@@ -92,8 +112,10 @@ struct EarningsInsightsView: View {
         }
 
         Section {
-            ForEach(EarningsCalculator.byPlatform(snapshots)) { row in
-                BreakdownRow(gross: row.gross, bonuses: row.bonuses, seconds: row.seconds, rate: row.hourlyRate) {
+            let platforms = EarningsCalculator.byPlatform(snapshots)
+            let bestPlatform = Self.best(platforms)
+            ForEach(platforms) { row in
+                BreakdownRow(gross: row.gross, bonuses: row.bonuses, seconds: row.seconds, rate: row.hourlyRate, best: bestPlatform) {
                     PlatformPill(platform: row.key)
                 }
             }
@@ -104,8 +126,10 @@ struct EarningsInsightsView: View {
         }
 
         Section {
-            ForEach(EarningsCalculator.byDaypart(snapshots)) { row in
-                BreakdownRow(gross: row.gross, bonuses: row.bonuses, seconds: row.seconds, rate: row.hourlyRate) {
+            let dayparts = EarningsCalculator.byDaypart(snapshots)
+            let bestDaypart = Self.best(dayparts)
+            ForEach(dayparts) { row in
+                BreakdownRow(gross: row.gross, bonuses: row.bonuses, seconds: row.seconds, rate: row.hourlyRate, best: bestDaypart) {
                     VStack(alignment: .leading) {
                         Text(row.key.title)
                         Text(row.key.hours).font(.caption).foregroundStyle(.secondary)
@@ -125,15 +149,39 @@ private struct BreakdownRow<Label: View>: View {
     let bonuses: Decimal
     let seconds: TimeInterval
     let rate: Decimal?
+    /// The highest rate in the section, for the bar's length.
+    let best: Decimal?
     @ViewBuilder let label: Label
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            row
+            if let fraction {
+                GeometryReader { proxy in
+                    Capsule()
+                        .fill(Theme.earnings.opacity(fraction >= 1 ? 1 : 0.4))
+                        .frame(width: max(4, proxy.size.width * fraction))
+                }
+                .frame(height: 6)
+                .accessibilityHidden(true)
+            }
+        }
+        .padding(.vertical, 2)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var fraction: Double? {
+        guard let rate, let best, best > 0 else { return nil }
+        return min(1, max(0, NSDecimalNumber(decimal: rate / best).doubleValue))
+    }
+
+    private var row: some View {
         HStack {
             label
             Spacer()
             VStack(alignment: .trailing, spacing: 2) {
                 Text(Format.rate(rate, per: "hr"))
-                    .font(.headline.monospacedDigit())
+                    .font(Theme.metric)
                 Text(bonuses > 0
                      ? "\(Format.money(gross)) incl. \(Format.money(TaxCalculator.round(bonuses))) bonus · \(Format.duration(seconds))"
                      : "\(Format.money(gross)) · \(Format.duration(seconds))")
@@ -141,5 +189,78 @@ private struct BreakdownRow<Label: View>: View {
                     .foregroundStyle(.secondary)
             }
         }
+    }
+}
+
+/// "On pace for": the recent weekly pace projected over a month and the rest of the year.
+private struct PaceCard: View {
+    let pace: EarningsPace
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("On pace for")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Text(Format.wholeMoney(pace.yearTotal))
+                    .font(Theme.hero(40))
+                Text("in \(String(pace.year)) at your last 7 days' pace")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            MetricRow(metrics: [
+                MetricView(title: "Per week", value: Format.wholeMoney(pace.weekly), caption: trendText),
+                MetricView(title: "Per month", value: Format.wholeMoney(pace.monthly)),
+            ])
+        }
+        .padding(.vertical, 6)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var trendText: String? {
+        guard let trend = pace.trend else { return nil }
+        let percent = trend.formatted(.percent.precision(.fractionLength(0)))
+        return trend >= 0 ? "Up \(percent) on the week before" : "Down \(percent.replacingOccurrences(of: "-", with: "")) on the week before"
+    }
+}
+
+/// Weekly earnings, with rare bonuses stacked in a lighter shade.
+private struct WeeklyChart: View {
+    let weeks: [WeeklyEarnings]
+
+    var body: some View {
+        Chart {
+            ForEach(weeks) { week in
+                BarMark(x: .value("Week", week.weekStart, unit: .weekOfYear), y: .value("Earned", NSDecimalNumber(decimal: week.base).doubleValue))
+                    .foregroundStyle(by: .value("Kind", "Pay"))
+                    .cornerRadius(4)
+                if week.bonuses > 0 {
+                    BarMark(x: .value("Week", week.weekStart, unit: .weekOfYear), y: .value("Earned", NSDecimalNumber(decimal: week.bonuses).doubleValue))
+                        .foregroundStyle(by: .value("Kind", "Rare bonus"))
+                        .cornerRadius(4)
+                }
+            }
+        }
+        .chartForegroundStyleScale(["Pay": Theme.earnings, "Rare bonus": Theme.bonus])
+        .chartLegend(weeks.contains { $0.bonuses > 0 } ? .visible : .hidden)
+        .chartYAxis {
+            AxisMarks { value in
+                AxisGridLine()
+                AxisValueLabel {
+                    if let amount = value.as(Double.self) {
+                        Text(amount, format: .currency(code: Format.currencyCode).precision(.fractionLength(0)))
+                    }
+                }
+            }
+        }
+        .chartXAxis {
+            AxisMarks(values: .stride(by: .weekOfYear, count: 2)) {
+                AxisValueLabel(format: .dateTime.month(.abbreviated).day())
+            }
+        }
+        .frame(height: 180)
+        .padding(.vertical, 8)
+        .accessibilityLabel("Weekly earnings")
+        .accessibilityValue(weeks.map { "\($0.weekStart.formatted(.dateTime.month().day())): \(Format.money($0.total))" }.joined(separator: ", "))
     }
 }

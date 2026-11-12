@@ -48,7 +48,7 @@ struct TripDetailView: View {
             }
 
             Section("Trip") {
-                LabeledContent("Distance", value: unit.format(meters: trip.distanceMeters))
+                LabeledContent("Distance", value: unit.format(meters: trip.distanceMeters, precise: true))
                 LabeledContent("Started", value: trip.startedAt.formatted(date: .abbreviated, time: .shortened))
                 if let endedAt = trip.endedAt {
                     LabeledContent("Ended", value: endedAt.formatted(date: .omitted, time: .shortened))

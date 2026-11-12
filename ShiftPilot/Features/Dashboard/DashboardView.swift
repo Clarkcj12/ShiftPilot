@@ -10,6 +10,7 @@ struct DashboardView: View {
     @Query(sort: \Shift.startedAt, order: .reverse) private var shifts: [Shift]
     @AppStorage(DistanceUnit.storageKey) private var unit: DistanceUnit = .localeDefault
     @State private var isLoggingFillUp = false
+    @State private var isAddingExpense = false
 
     var body: some View {
         NavigationStack {
@@ -26,45 +27,17 @@ struct DashboardView: View {
                 }
 
                 Section {
-                    ShiftCard()
+                    ShiftCard(today: todayTotals)
                 }
 
-                Section("Drive") {
-                    StatusRow(
+                Section {
+                    DriveStatusRow(
                         phase: autoDrive.state.phase,
-                        distance: tracker.isTracking ? unit.format(meters: tracker.distanceMeters) : nil
+                        liveDistance: tracker.isTracking ? unit.format(meters: tracker.distanceMeters) : nil,
+                        todaySummary: todayTrips.isEmpty ? nil : "\(unit.format(meters: todayMeters)) today · \(unit.format(meters: todayBusinessMeters)) business",
+                        start: { autoDrive.startTripManually() },
+                        end: { autoDrive.endTripManually() }
                     )
-                    TripControlButton(phase: autoDrive.state.phase) {
-                        autoDrive.startTripManually()
-                    } end: {
-                        autoDrive.endTripManually()
-                    }
-                    if garage.current != nil {
-                        Button("Log fill-up", systemImage: "fuelpump") {
-                            isLoggingFillUp = true
-                        }
-                    }
-                }
-
-                Section("So far today") {
-                    let today = todayShifts.map { $0.snapshot(costPerMeter: garage.costPerMeter) }
-                    if today.isEmpty && todayTrips.isEmpty {
-                        Text("Nothing logged yet today. Start a shift when you go online, or just drive: trips are logged automatically.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .padding(.vertical, 4)
-                    } else {
-                        let gross = today.reduce(Decimal(0)) { $0 + $1.gross }
-                        let seconds = today.reduce(0) { $0 + $1.duration }
-                        TodaySummary(tiles: [
-                            .init(title: "Earned", value: Format.money(gross)),
-                            .init(title: "True EPH", value: Format.rate(EarningsCalculator.hourlyRate(gross, over: seconds), per: "hr")),
-                            .init(title: "Net profit", value: NetProfit.total(today).map(Format.money) ?? "—"),
-                            .init(title: "Business", value: unit.format(meters: todayBusinessMeters), caption: "of \(unit.format(meters: todayMeters))"),
-                            .init(title: "Deduction", value: Format.money(todayDeduction), caption: "× \(TaxTables.rateLabel(on: .now))"),
-                            .init(title: "Trips", value: "\(todayTrips.count)"),
-                        ])
-                    }
                 }
 
                 if !shifts.isEmpty {
@@ -111,7 +84,23 @@ struct DashboardView: View {
                     FillUpEditorView(vehicle: vehicle)
                 }
             }
+            .sheet(isPresented: $isAddingExpense) {
+                ExpenseEditorView()
+            }
             .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        if autoDrive.state.phase == .idle || autoDrive.state.phase == .candidate {
+                            Button("Start trip now", systemImage: "car.fill") { autoDrive.startTripManually() }
+                        }
+                        if garage.current != nil {
+                            Button("Log fill-up", systemImage: "fuelpump") { isLoggingFillUp = true }
+                        }
+                        Button("Add expense", systemImage: "receipt") { isAddingExpense = true }
+                    } label: {
+                        Label("Add", systemImage: "plus")
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     NavigationLink {
                         SettingsView()
@@ -145,48 +134,21 @@ struct DashboardView: View {
         todayBusinessTrips.reduce(0) { $0 + $1.distanceMeters }
     }
 
+    private var todayTotals: TodayTotals {
+        let today = todayShifts.filter { !$0.isActive }.map { $0.snapshot(costPerMeter: garage.costPerMeter) }
+        return TodayTotals(
+            gross: today.reduce(0) { $0 + $1.gross },
+            seconds: today.reduce(0) { $0 + $1.duration },
+            net: NetProfit.total(today),
+            deduction: todayDeduction,
+            hasHistory: !shifts.isEmpty
+        )
+    }
+
     private var todayDeduction: Decimal {
         let business = todayBusinessTrips
             .map { TaxMileage(meters: $0.distanceMeters, date: $0.startedAt) }
         return TaxCalculator.round(business.reduce(0) { $0 + TaxCalculator.deduction(for: $1) })
-    }
-}
-
-/// The day's numbers as a grid: three across, two at accessibility text sizes.
-private struct TodaySummary: View {
-    struct Tile: Identifiable {
-        var title: String
-        var value: String
-        var caption: String? = nil
-        var id: String { title }
-    }
-
-    let tiles: [Tile]
-
-    @Environment(\.dynamicTypeSize) private var typeSize
-
-    var body: some View {
-        let columns = Array(repeating: GridItem(.flexible(), spacing: 12, alignment: .topLeading), count: typeSize.isAccessibilitySize ? 2 : 3)
-        LazyVGrid(columns: columns, alignment: .leading, spacing: 16) {
-            ForEach(tiles) { tile in
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(tile.value)
-                        .font(.headline.monospacedDigit())
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                    Text(tile.title)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    if let caption = tile.caption {
-                        Text(caption)
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                    }
-                }
-                .accessibilityElement(children: .combine)
-            }
-        }
-        .padding(.vertical, 6)
     }
 }
 
@@ -235,68 +197,57 @@ private struct SectionHeader<Destination: View>: View {
     }
 }
 
-private struct TripControlButton: View {
+/// One line: what auto-detection is doing, today's miles, and a manual start or end.
+private struct DriveStatusRow: View {
     let phase: DetectorState.Phase
+    /// Formatted live trip distance, or nil when not tracking.
+    let liveDistance: String?
+    let todaySummary: String?
     let start: () -> Void
     let end: () -> Void
 
     @State private var isConfirmingEnd = false
 
     var body: some View {
-        switch phase {
-        case .idle, .candidate:
-            Button(action: start) {
-                Label(phase == .idle ? "Start trip" : "Start trip now", systemImage: "play.fill")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
-            .tint(.green)
-            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-        case .driving, .ending:
-            Button(role: .destructive) {
-                isConfirmingEnd = true
-            } label: {
-                Label("End trip", systemImage: "stop.fill")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-            .confirmationDialog("End this trip?", isPresented: $isConfirmingEnd, titleVisibility: .visible) {
-                Button("End trip", role: .destructive, action: end)
-            } message: {
-                Text("The miles logged so far will be saved.")
-            }
-        }
-    }
-}
-
-private struct StatusRow: View {
-    let phase: DetectorState.Phase
-    /// Formatted live trip distance, or nil when not tracking.
-    let distance: String?
-
-    var body: some View {
         HStack(spacing: 12) {
             Image(systemName: symbol)
-                .font(.title2)
+                .font(.title3)
                 .foregroundStyle(tint)
-                .frame(width: 32)
+                .symbolEffect(.pulse, isActive: phase == .driving)
+                .frame(width: 30)
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.headline)
-                Text(subtitle).font(.subheadline).foregroundStyle(.secondary)
+                Text(title).font(.subheadline.weight(.semibold))
+                Text(subtitle).font(.caption).foregroundStyle(.secondary)
             }
-            Spacer()
-            if let distance {
-                Text(distance)
-                    .font(.title3.monospacedDigit())
+            Spacer(minLength: 8)
+            if let liveDistance {
+                Text(liveDistance)
+                    .font(Theme.metric)
+            }
+            switch phase {
+            case .idle, .candidate:
+                Button("Start", action: start)
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .accessibilityLabel("Start trip")
+            case .driving, .ending:
+                Button("End", role: .destructive) { isConfirmingEnd = true }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .accessibilityLabel("End trip")
+                    .confirmationDialog("End this trip?", isPresented: $isConfirmingEnd, titleVisibility: .visible) {
+                        Button("End trip", role: .destructive, action: end)
+                    } message: {
+                        Text("The miles logged so far will be saved.")
+                    }
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 2)
     }
 
     private var title: String {
         switch phase {
-        case .idle: "Waiting for a drive"
+        case .idle: "Ready to log drives"
         case .candidate: "Checking for a drive…"
         case .driving: "Driving"
         case .ending: "Wrapping up trip"
@@ -305,10 +256,10 @@ private struct StatusRow: View {
 
     private var subtitle: String {
         switch phase {
-        case .idle: "Trips start automatically when you connect to your car or start driving."
-        case .candidate: "Motion suggests you're in a car. Confirming with GPS speed."
-        case .driving: "Logging your trip"
-        case .ending: "Trip ends after you've been parked a few minutes."
+        case .idle: todaySummary ?? "Starts automatically when you drive"
+        case .candidate: "Confirming with GPS speed"
+        case .driving: "Logging this trip"
+        case .ending: "Ends after a few minutes parked"
         }
     }
 

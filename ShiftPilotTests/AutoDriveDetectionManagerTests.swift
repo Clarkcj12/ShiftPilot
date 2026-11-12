@@ -309,7 +309,8 @@ struct DistanceUnitTests {
     @Test func convertsAndFormatsMeters() {
         #expect(abs(DistanceUnit.miles.value(fromMeters: 1609.344) - 1) < 1e-9)
         #expect(DistanceUnit.kilometers.value(fromMeters: 2500) == 2.5)
-        #expect(DistanceUnit.kilometers.format(meters: 12_346) == "12.35 km")
-        #expect(DistanceUnit.miles.format(meters: 16_093.44) == "10.00 mi")
+        #expect(DistanceUnit.kilometers.format(meters: 12_346) == "12.3 km")
+        #expect(DistanceUnit.kilometers.format(meters: 12_346, precise: true) == "12.35 km")
+        #expect(DistanceUnit.miles.format(meters: 16_093.44) == "10.0 mi")
     }
 }

@@ -345,3 +345,45 @@ struct IncentiveTests {
         #expect(shift.snapshot(now: date(9)).bonuses == 20)
     }
 }
+
+struct PaceTests {
+    private let now = date(12)
+
+    private func shift(daysAgo: Int, earned: Decimal, bonus: Decimal = 0) -> ShiftSnapshot {
+        let start = utc.date(byAdding: .day, value: -daysAgo, to: now)!
+        var pay = PayoutSnapshot(platform: .spark, amount: earned, receivedAt: start.addingTimeInterval(3600))
+        pay.bonus = bonus
+        return ShiftSnapshot(start: start, end: start.addingTimeInterval(7200), payouts: [pay], distanceMeters: 0)
+    }
+
+    @Test func needsAWeekOfHistory() {
+        #expect(EarningsCalculator.pace([shift(daysAgo: 3, earned: 100)], now: now, calendar: utc) == nil)
+    }
+
+    @Test func paceLeavesOutRareBonusesButTheYearCountsThem() throws {
+        let shifts = [shift(daysAgo: 8, earned: 50), shift(daysAgo: 2, earned: 335, bonus: 200), shift(daysAgo: 1, earned: 75)]
+        let pace = try #require(EarningsCalculator.pace(shifts, now: now, calendar: utc))
+        #expect(pace.weekly == 210)
+        #expect(pace.previousWeekly == nil)
+        #expect(pace.monthly == 30 * Decimal(string: "30.44")!)
+        // Jan 5 noon: 360.5 days left at $30/day, plus $410 earned this year (Dec 28 is last year).
+        let expected = NSDecimalNumber(decimal: 410 + 30 * Decimal(360.5)).doubleValue
+        #expect(abs(NSDecimalNumber(decimal: pace.yearTotal).doubleValue - expected) < 0.01)
+    }
+
+    @Test func trendComparesWithThePreviousWeek() throws {
+        let shifts = [shift(daysAgo: 14, earned: 100), shift(daysAgo: 3, earned: 150)]
+        let pace = try #require(EarningsCalculator.pace(shifts, now: now, calendar: utc))
+        #expect(pace.previousWeekly == 100)
+        #expect(abs((pace.trend ?? 0) - 0.5) < 0.0001)
+    }
+
+    @Test func weeklyBarsIncludeEmptyWeeksOldestFirst() {
+        var calendar = utc
+        calendar.firstWeekday = 2
+        let weeks = EarningsCalculator.weekly([shift(daysAgo: 0, earned: 40, bonus: 10), shift(daysAgo: 14, earned: 20)], weeks: 4, now: now, calendar: calendar)
+        #expect(weeks.count == 4)
+        #expect(weeks.map(\.total) == [0, 20, 0, 40])
+        #expect(weeks.last?.bonuses == 10)
+    }
+}

@@ -37,8 +37,9 @@ enum DistanceUnit: String, CaseIterable, Identifiable {
         }
     }
 
-    /// e.g. "12.35 mi". Two decimals, so distance × the mileage rate matches the deduction shown.
-    func format(meters: Double) -> String {
-        "\(value(fromMeters: meters).formatted(.number.precision(.fractionLength(2)))) \(abbreviation)"
+    /// e.g. "12.3 mi". Pass `precise` for two decimals where distance × the mileage rate
+    /// should match a deduction shown next to it.
+    func format(meters: Double, precise: Bool = false) -> String {
+        "\(value(fromMeters: meters).formatted(.number.precision(.fractionLength(precise ? 2 : 1)))) \(abbreviation)"
     }
 }

@@ -189,3 +189,73 @@ enum EarningsCalculator {
         return result
     }
 }
+
+/// Where the driver is headed at their recent pace.
+struct EarningsPace: Sendable, Equatable {
+    /// Pay over the last 7 days, without rare bonuses.
+    var weekly: Decimal
+    /// The 7 days before that, for a trend; nil without two weeks of history.
+    var previousWeekly: Decimal?
+    var monthly: Decimal
+    /// Earned so far this year (including bonuses) plus the rest of the year at the weekly pace.
+    var yearTotal: Decimal
+    var year: Int
+
+    /// Change from the previous 7 days, e.g. 0.12 for +12%.
+    var trend: Double? {
+        guard let previousWeekly, previousWeekly > 0 else { return nil }
+        return NSDecimalNumber(decimal: (weekly - previousWeekly) / previousWeekly).doubleValue
+    }
+}
+
+struct WeeklyEarnings: Identifiable, Sendable, Equatable {
+    var weekStart: Date
+    var base: Decimal
+    var bonuses: Decimal
+
+    var id: Date { weekStart }
+    var total: Decimal { base + bonuses }
+}
+
+extension EarningsCalculator {
+    /// Needs a full week of history, so a first day doesn't project a year from one shift.
+    static func pace(_ shifts: [ShiftSnapshot], now: Date = .now, calendar: Calendar = .current) -> EarningsPace? {
+        guard let first = shifts.map(\.start).min(),
+              let weekAgo = calendar.date(byAdding: .day, value: -7, to: now),
+              let twoWeeksAgo = calendar.date(byAdding: .day, value: -14, to: now),
+              first <= weekAgo else { return nil }
+        func base(from start: Date, to end: Date) -> Decimal {
+            shifts.filter { $0.start >= start && $0.start < end }
+                .reduce(0) { $0 + $1.gross - $1.bonuses }
+        }
+        let weekly = base(from: weekAgo, to: now)
+        let previous = first <= twoWeeksAgo ? base(from: twoWeeksAgo, to: weekAgo) : nil
+
+        let year = calendar.component(.year, from: now)
+        let startOfYear = calendar.date(from: DateComponents(year: year, month: 1, day: 1)) ?? now
+        let startOfNextYear = calendar.date(byAdding: .year, value: 1, to: startOfYear) ?? now
+        let earned = shifts.filter { $0.start >= startOfYear && $0.start < now }.reduce(Decimal(0)) { $0 + $1.gross }
+        let daysLeft = max(0, startOfNextYear.timeIntervalSince(now) / 86_400)
+        let daily = weekly / 7
+        return EarningsPace(
+            weekly: weekly,
+            previousWeekly: previous,
+            monthly: daily * Decimal(string: "30.44")!,
+            yearTotal: earned + daily * Decimal(daysLeft),
+            year: year
+        )
+    }
+
+    /// The last `count` calendar weeks, oldest first, including empty ones.
+    static func weekly(_ shifts: [ShiftSnapshot], weeks count: Int = 8, now: Date = .now, calendar: Calendar = .current) -> [WeeklyEarnings] {
+        guard let thisWeek = calendar.dateInterval(of: .weekOfYear, for: now)?.start else { return [] }
+        return (0..<count).reversed().compactMap { offset in
+            guard let start = calendar.date(byAdding: .weekOfYear, value: -offset, to: thisWeek),
+                  let end = calendar.date(byAdding: .weekOfYear, value: 1, to: start) else { return nil }
+            let inWeek = shifts.filter { $0.start >= start && $0.start < end }
+            let bonuses = inWeek.reduce(Decimal(0)) { $0 + $1.bonuses }
+            let gross = inWeek.reduce(Decimal(0)) { $0 + $1.gross }
+            return WeeklyEarnings(weekStart: start, base: gross - bonuses, bonuses: bonuses)
+        }
+    }
+}

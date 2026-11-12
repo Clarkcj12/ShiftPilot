@@ -38,11 +38,26 @@ enum SampleData {
         }
 
         let costPerMeter = garage.effectiveProfile(for: car).costPerMeter
-        let shiftPlans: [(day: Int, start: Int, hours: Int, payouts: [(GigPlatform, Double)], miles: Double)] = [
+        var shiftPlans: [(day: Int, start: Int, hours: Int, payouts: [(GigPlatform, Double)], miles: Double)] = [
             (-3, 11, 4, [(.doorDash, 9.5), (.doorDash, 12.25), (.uberEats, 8.75), (.doorDash, 15.0)], 38),
             (-2, 17, 5, [(.uber, 18.4), (.uber, 22.1), (.lyft, 14.6), (.uber, 26.3), (.uberEats, 11.2)], 61),
             (-1, 10, 3, [(.instacart, 24.0), (.shipt, 19.5)], 27),
         ]
+        // Seven more weeks of history, four or five shifts a week, slowly picking up.
+        let rotation: [(Int, Int, [(GigPlatform, Double)], Double)] = [
+            (17, 4, [(.doorDash, 11), (.doorDash, 14.5), (.uberEats, 9.25)], 42),
+            (11, 3, [(.instacart, 21), (.shipt, 17.5)], 31),
+            (6, 3, [(.uber, 16.8), (.lyft, 13.9), (.uber, 19.4)], 48),
+            (18, 3, [(.doorDash, 12.75), (.doorDash, 16), (.doorDash, 10.5)], 36),
+        ]
+        for offset in (5...52).reversed() where offset % 7 != 2 && offset % 7 != 5 {
+            let plan = rotation[offset % rotation.count]
+            let growth = 1 + Double(52 - offset) / 120
+            shiftPlans.append((-offset, plan.0, plan.1, plan.2.map { ($0.0, $0.1 * growth) }, plan.3))
+        }
+        if calendar.component(.hour, from: .now) >= 10 {
+            shiftPlans.append((0, 7, 2, [(.doorDash, 10.25), (.uberEats, 12.5)], 22))
+        }
         var firstShift: Shift?
         for plan in shiftPlans {
             let shift = Shift(startedAt: day(plan.day, plan.start))
@@ -51,9 +66,14 @@ enum SampleData {
             firstShift = firstShift ?? shift
             for (index, payout) in plan.payouts.enumerated() {
                 let received = day(plan.day, plan.start, 40 * (index + 1) % (plan.hours * 60))
-                let amount = Decimal(payout.1 * 2)
+                let amount = TaxCalculator.round(Decimal(payout.1 * 2))
                 // Roughly a third of delivery pay is customer tips.
                 let item = Payout(amount: amount, platform: payout.0, receivedAt: received, tip: TaxCalculator.round(amount * Decimal(string: "0.35")!))
+                if plan.day == -2, index == 3 {
+                    // A quest bonus on top of the order.
+                    item.amount += 100
+                    item.bonus = 100
+                }
                 context.insert(item)
                 item.shift = shift
             }

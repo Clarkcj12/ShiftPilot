@@ -8,6 +8,11 @@ enum Format {
         amount.formatted(.currency(code: currencyCode))
     }
 
+    /// Projections and chart labels, e.g. "$8,490".
+    static func wholeMoney(_ amount: Decimal) -> String {
+        amount.formatted(.currency(code: currencyCode).precision(.fractionLength(0)))
+    }
+
     /// Pump prices carry a third decimal, e.g. "$3.399".
     static func fuelPrice(_ amount: Decimal) -> String {
         amount.formatted(.currency(code: currencyCode).precision(.fractionLength(2...3)))

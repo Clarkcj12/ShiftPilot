@@ -101,7 +101,7 @@ struct TaxVaultView: View {
 
             Section {
                 LabeledContent("Earnings", value: Format.money(estimate.gross))
-                LabeledContent("Business distance", value: unit.format(meters: estimate.businessMeters))
+                LabeledContent("Business distance", value: unit.format(meters: estimate.businessMeters, precise: true))
                 LabeledContent("Mileage deduction", value: Format.money(estimate.mileageDeduction))
                 NavigationLink {
                     ExpenseListView()

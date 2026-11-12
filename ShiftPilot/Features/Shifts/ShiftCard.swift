@@ -1,7 +1,18 @@
 import SwiftUI
 
-/// Dashboard hero: live True EPH for the active shift, or a Start shift button.
+/// Today's numbers at a glance, shown on the dashboard.
+struct TodayTotals {
+    var gross: Decimal = 0
+    var seconds: TimeInterval = 0
+    var net: Decimal?
+    var deduction: Decimal = 0
+    var hasHistory = false
+}
+
+/// Dashboard hero: the live shift, or today's earnings and a Start shift button.
 struct ShiftCard: View {
+    var today = TodayTotals()
+
     @Environment(ShiftManager.self) private var shifts
 
     var body: some View {
@@ -14,17 +25,37 @@ struct ShiftCard: View {
         if let shift = shifts.activeShift {
             ActiveShiftCard(shift: shift)
         } else {
-            VStack(alignment: .leading, spacing: 12) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Not on shift").font(.headline)
-                    Text("Start when you go online and end when you're done for the day. GPS stays on during a shift so every mile is logged.")
+            VStack(alignment: .leading, spacing: 14) {
+                Text(Date.now, format: .dateTime.weekday(.wide).month(.wide).day())
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(Format.money(today.gross))
+                        .font(Theme.hero())
+                        .contentTransition(.numericText())
+                    Text("Earned today")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                if today.hasHistory {
+                    MetricRow(metrics: [
+                        MetricView(title: "True EPH", value: Format.rate(EarningsCalculator.hourlyRate(today.gross, over: today.seconds), per: "hr")),
+                        MetricView(title: "Net profit", value: today.net.map(Format.money) ?? "—"),
+                        MetricView(title: "Deduction", value: Format.money(today.deduction)),
+                    ])
+                } else {
+                    Text("Start a shift when you go online. Drives are logged automatically, so every mile counts.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
+
                 Button {
                     shifts.startShift()
                 } label: {
-                    Label("Start shift", systemImage: "play.circle.fill")
+                    Label("Start shift", systemImage: "play.fill")
+                        .font(.headline)
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
@@ -60,19 +91,18 @@ private struct ActiveShiftCard: View {
 
                 VStack(alignment: .leading, spacing: 0) {
                     Text(Format.rate(snapshot.hourlyRate, per: "hr"))
-                        .font(.system(size: 44, weight: .bold, design: .rounded))
-                        .monospacedDigit()
+                        .font(Theme.hero())
                         .contentTransition(.numericText())
                     Text("True earnings per hour")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
 
-                HStack(alignment: .top) {
-                    ShiftMetric(title: "Earned", value: Format.money(snapshot.gross))
-                    ShiftMetric(title: "Net", value: snapshot.netProfit.map(Format.money) ?? "—")
-                    ShiftMetric(title: "Distance", value: unit.format(meters: snapshot.distanceMeters))
-                }
+                MetricRow(metrics: [
+                    MetricView(title: "Earned", value: Format.money(snapshot.gross)),
+                    MetricView(title: "Net", value: snapshot.netProfit.map(Format.money) ?? "—"),
+                    MetricView(title: "Distance", value: unit.format(meters: snapshot.distanceMeters)),
+                ])
 
                 HStack {
                     Button {
@@ -148,7 +178,7 @@ struct ShiftMetric: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(value)
-                .font(.headline.monospacedDigit())
+                .font(Theme.metric)
             Text(title)
                 .font(.caption)
                 .foregroundStyle(.secondary)
