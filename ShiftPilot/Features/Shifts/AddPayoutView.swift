@@ -13,6 +13,7 @@ struct AddPayoutView: View {
     @State private var platform: GigPlatform
     @State private var amount: Decimal?
     @State private var tip: Decimal?
+    @State private var bonus: Decimal?
     @State private var receivedAt: Date
     @State private var note: String
     @State private var isConfirmingDelete = false
@@ -31,6 +32,7 @@ struct AddPayoutView: View {
         _platform = State(initialValue: payout?.platform ?? remembered ?? .doorDash)
         _amount = State(initialValue: payout?.amount)
         _tip = State(initialValue: payout?.tip)
+        _bonus = State(initialValue: payout?.bonus)
         _receivedAt = State(initialValue: payout?.receivedAt ?? latest)
         _note = State(initialValue: payout?.note ?? "")
     }
@@ -76,6 +78,21 @@ struct AddPayoutView: View {
                 }
 
                 Section {
+                    TextField("Rare bonus", value: $bonus, format: .currency(code: Format.currencyCode))
+                        .keyboardType(.decimalPad)
+                        .monospacedDigit()
+                } header: {
+                    Text("Rare bonus in this payout")
+                } footer: {
+                    if isBonusTooLarge {
+                        Text("Tips and the bonus together can't be more than the total payout.")
+                            .foregroundStyle(.red)
+                    } else {
+                        Text("Only big, occasional bonuses, like a quest for a set number of trips. Leave small regular incentives (peak hours, all-day) in the amount: they're part of what you usually make. A rare bonus still counts as earnings and income, but Insights leaves it out of hourly rates so it doesn't skew them.")
+                    }
+                }
+
+                Section {
                     DatePicker("Received", selection: $receivedAt, in: Date.safeRange(shift.startedAt, latestAllowed))
                     TextField("Note (optional)", text: $note)
                 }
@@ -109,7 +126,7 @@ struct AddPayoutView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save", action: save)
-                        .disabled((amount ?? 0) <= 0 || isTipTooLarge)
+                        .disabled((amount ?? 0) <= 0 || isTipTooLarge || isBonusTooLarge)
                 }
             }
             .onAppear { isAmountFocused = payout == nil }
@@ -127,12 +144,18 @@ struct AddPayoutView: View {
         return tip < 0 || tip > (amount ?? 0)
     }
 
+    private var isBonusTooLarge: Bool {
+        guard let bonus else { return false }
+        return bonus < 0 || bonus + (tip ?? 0) > (amount ?? 0)
+    }
+
     private func save() {
-        guard let amount, amount > 0, !isTipTooLarge else { return }
+        guard let amount, amount > 0, !isTipTooLarge, !isBonusTooLarge else { return }
+        let bonus = (bonus ?? 0) > 0 ? bonus : nil
         if let payout {
-            shifts.updatePayout(payout, amount: amount, platform: platform, receivedAt: receivedAt, note: note, tip: tip)
+            shifts.updatePayout(payout, amount: amount, platform: platform, receivedAt: receivedAt, note: note, tip: tip, bonus: bonus)
         } else {
-            shifts.addPayout(amount, platform: platform, receivedAt: receivedAt, note: note, tip: tip, to: shift)
+            shifts.addPayout(amount, platform: platform, receivedAt: receivedAt, note: note, tip: tip, bonus: bonus, to: shift)
             lastPlatform = platform
         }
         dismiss()

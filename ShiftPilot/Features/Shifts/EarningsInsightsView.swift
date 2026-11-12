@@ -29,6 +29,7 @@ struct EarningsInsightsView: View {
             .filter { shift in period.cutoff.map { shift.startedAt >= $0 } ?? true }
             .map { $0.snapshot(costPerMeter: garage.costPerMeter) }
         let gross = snapshots.reduce(Decimal(0)) { $0 + $1.gross }
+        let bonuses = snapshots.reduce(Decimal(0)) { $0 + $1.bonuses }
         let seconds = snapshots.reduce(0) { $0 + $1.duration }
 
         List {
@@ -47,7 +48,7 @@ struct EarningsInsightsView: View {
                         .listRowBackground(Color.clear)
                 }
             } else {
-                breakdownSections(snapshots: snapshots, gross: gross, seconds: seconds, periodCosts: periodCosts)
+                breakdownSections(snapshots: snapshots, gross: gross, bonuses: bonuses, seconds: seconds, periodCosts: periodCosts)
             }
         }
         .navigationTitle("Insights")
@@ -62,10 +63,16 @@ struct EarningsInsightsView: View {
     }
 
     @ViewBuilder
-    private func breakdownSections(snapshots: [ShiftSnapshot], gross: Decimal, seconds: TimeInterval, periodCosts: Decimal) -> some View {
-        Section("Overall") {
+    private func breakdownSections(snapshots: [ShiftSnapshot], gross: Decimal, bonuses: Decimal, seconds: TimeInterval, periodCosts: Decimal) -> some View {
+        Section {
             LabeledContent("True EPH", value: Format.rate(EarningsCalculator.hourlyRate(gross, over: seconds), per: "hr"))
+            if bonuses > 0 {
+                LabeledContent("Without rare bonuses", value: Format.rate(EarningsCalculator.hourlyRate(gross - bonuses, over: seconds), per: "hr"))
+            }
             LabeledContent("Earnings", value: Format.money(gross))
+            if bonuses > 0 {
+                LabeledContent("Rare bonuses", value: Format.money(bonuses))
+            }
             if let shiftNet = NetProfit.total(snapshots) {
                 let net = shiftNet - periodCosts
                 if periodCosts > 0 {
@@ -76,11 +83,17 @@ struct EarningsInsightsView: View {
             }
             LabeledContent("Time on shift", value: Format.duration(seconds))
             LabeledContent("Shifts", value: "\(snapshots.count)")
+        } header: {
+            Text("Overall")
+        } footer: {
+            if bonuses > 0 {
+                Text("Rates by platform and time of day below leave out rare bonuses, so they show what you usually make.")
+            }
         }
 
         Section {
             ForEach(EarningsCalculator.byPlatform(snapshots)) { row in
-                BreakdownRow(gross: row.gross, seconds: row.seconds, rate: row.hourlyRate) {
+                BreakdownRow(gross: row.gross, bonuses: row.bonuses, seconds: row.seconds, rate: row.hourlyRate) {
                     PlatformPill(platform: row.key)
                 }
             }
@@ -92,7 +105,7 @@ struct EarningsInsightsView: View {
 
         Section {
             ForEach(EarningsCalculator.byDaypart(snapshots)) { row in
-                BreakdownRow(gross: row.gross, seconds: row.seconds, rate: row.hourlyRate) {
+                BreakdownRow(gross: row.gross, bonuses: row.bonuses, seconds: row.seconds, rate: row.hourlyRate) {
                     VStack(alignment: .leading) {
                         Text(row.key.title)
                         Text(row.key.hours).font(.caption).foregroundStyle(.secondary)
@@ -109,6 +122,7 @@ struct EarningsInsightsView: View {
 
 private struct BreakdownRow<Label: View>: View {
     let gross: Decimal
+    let bonuses: Decimal
     let seconds: TimeInterval
     let rate: Decimal?
     @ViewBuilder let label: Label
@@ -120,7 +134,9 @@ private struct BreakdownRow<Label: View>: View {
             VStack(alignment: .trailing, spacing: 2) {
                 Text(Format.rate(rate, per: "hr"))
                     .font(.headline.monospacedDigit())
-                Text("\(Format.money(gross)) · \(Format.duration(seconds))")
+                Text(bonuses > 0
+                     ? "\(Format.money(gross)) incl. \(Format.money(TaxCalculator.round(bonuses))) bonus · \(Format.duration(seconds))"
+                     : "\(Format.money(gross)) · \(Format.duration(seconds))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

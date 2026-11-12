@@ -62,7 +62,7 @@ final class Shift {
         return ShiftSnapshot(
             start: startedAt,
             end: endedAt ?? now,
-            payouts: payouts.map { PayoutSnapshot(platform: $0.platform, amount: $0.amount, receivedAt: $0.receivedAt) },
+            payouts: payouts.map { PayoutSnapshot(platform: $0.platform, amount: $0.amount, receivedAt: $0.receivedAt, bonus: min(max(0, $0.bonus ?? 0), $0.amount)) },
             distanceMeters: business.reduce(0) { $0 + $1.distanceMeters },
             // Unknown if any trip's cost is unknown, rather than quietly undercounting.
             vehicleCost: costs.contains(nil) ? nil : costs.reduce(Decimal(0)) { $0 + ($1 ?? 0) },
@@ -82,10 +82,14 @@ final class Payout {
     /// The customer-tip part of `amount`, for the qualified tips deduction. nil means not
     /// entered (not the same as $0).
     var tip: Decimal? = nil
+    /// The rare-bonus part of `amount` (e.g. a quest for a set number of trips), left out of
+    /// hourly rates. Small regular incentives stay in `amount` only. nil or 0 means none.
+    var bonus: Decimal? = nil
 
-    init(amount: Decimal, platform: GigPlatform, receivedAt: Date, note: String = "", tip: Decimal? = nil) {
+    init(amount: Decimal, platform: GigPlatform, receivedAt: Date, note: String = "", tip: Decimal? = nil, bonus: Decimal? = nil) {
         self.amount = amount
         self.tip = tip
+        self.bonus = bonus
         self.platformRawValue = platform.rawValue
         self.receivedAt = receivedAt
         self.note = note

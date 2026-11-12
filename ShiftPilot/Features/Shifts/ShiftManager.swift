@@ -125,16 +125,17 @@ final class ShiftManager {
         return shift.payouts.count > 1
     }
 
-    func addPayout(_ amount: Decimal, platform: GigPlatform, receivedAt: Date, note: String = "", tip: Decimal? = nil, to shift: Shift) {
-        let payout = Payout(amount: amount, platform: platform, receivedAt: receivedAt, note: note, tip: tip)
+    func addPayout(_ amount: Decimal, platform: GigPlatform, receivedAt: Date, note: String = "", tip: Decimal? = nil, bonus: Decimal? = nil, to shift: Shift) {
+        let payout = Payout(amount: amount, platform: platform, receivedAt: receivedAt, note: note, tip: tip, bonus: bonus)
         context.insert(payout)
         payout.shift = shift
         save()
     }
 
-    func updatePayout(_ payout: Payout, amount: Decimal, platform: GigPlatform, receivedAt: Date, note: String, tip: Decimal?) {
+    func updatePayout(_ payout: Payout, amount: Decimal, platform: GigPlatform, receivedAt: Date, note: String, tip: Decimal?, bonus: Decimal? = nil) {
         payout.amount = amount
         payout.tip = tip
+        payout.bonus = bonus
         payout.platformRawValue = platform.rawValue
         payout.receivedAt = receivedAt
         payout.note = note

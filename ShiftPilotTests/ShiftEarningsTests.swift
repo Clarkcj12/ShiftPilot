@@ -306,3 +306,42 @@ struct PlatformOrderTests {
         #expect(GigPlatform.ordered(byUse: []) == GigPlatform.allCases)
     }
 }
+
+struct IncentiveTests {
+    /// 7–10 AM: $35 at 8, then $235 at 9 that includes a $200 incentive.
+    private var shiftWithIncentive: ShiftSnapshot {
+        var big = PayoutSnapshot(platform: .spark, amount: 235, receivedAt: date(9))
+        big.bonus = 200
+        return ShiftSnapshot(start: date(7), end: date(10), payouts: [payout(.spark, 35, at: 8), big], distanceMeters: 0)
+    }
+
+    @Test func incentivesCountAsEarningsButNotInRates() throws {
+        let shift = shiftWithIncentive
+        #expect(shift.gross == 270)
+        #expect(shift.bonuses == 200)
+        let spark = try #require(EarningsCalculator.byPlatform([shift]).first)
+        #expect(spark.gross == 270)
+        #expect(spark.bonuses == 200)
+        #expect(spark.hourlyRate == Decimal(70) / 3)
+    }
+
+    @Test func incentivesAreLeftOutOfTimeOfDayRatesToo() throws {
+        let rows = EarningsCalculator.byDaypart([shiftWithIncentive], calendar: utc)
+        let breakfast = try #require(rows.first { $0.key == .breakfast })
+        #expect(breakfast.gross == 270)
+        #expect(breakfast.bonuses == 200)
+        #expect(breakfast.hourlyRate == Decimal(70) / 3)
+    }
+
+    @MainActor
+    @Test func savedIncentiveIsCappedAtThePayout() throws {
+        let schema = Schema([Trip.self, TripPoint.self, Shift.self, Payout.self, TaxPayment.self, Vehicle.self, OdometerReading.self, FillUp.self, Expense.self])
+        let container = try ModelContainer(for: schema, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let context = ModelContext(container)
+        let manager = ShiftManager(context: context)
+        manager.startShift(at: date(7))
+        let shift = try #require(manager.activeShift)
+        manager.addPayout(20, platform: .spark, receivedAt: date(8), bonus: 50, to: shift)
+        #expect(shift.snapshot(now: date(9)).bonuses == 20)
+    }
+}

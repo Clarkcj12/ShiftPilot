@@ -34,6 +34,9 @@ struct ShiftDetailView: View {
                 }
                 LabeledContent("Earnings", value: Format.money(snapshot.gross))
                 LabeledContent("True EPH", value: Format.rate(snapshot.hourlyRate, per: "hr"))
+                if snapshot.bonuses > 0 {
+                    LabeledContent("Without rare bonuses", value: Format.rate(EarningsCalculator.hourlyRate(snapshot.gross - snapshot.bonuses, over: snapshot.duration), per: "hr"))
+                }
                 LabeledContent("Business distance", value: unit.format(meters: snapshot.distanceMeters))
                 LabeledContent("Per \(unit.abbreviation)", value: Format.rate(snapshot.earningsPerDistance(in: unit), per: unit.abbreviation))
             } header: {
@@ -67,6 +70,9 @@ struct ShiftDetailView: View {
                                 Text(Format.money(payout.amount)).monospacedDigit()
                                 if let tip = payout.tip, tip > 0 {
                                     Text("\(Format.money(tip)) tips").font(.caption).foregroundStyle(.secondary)
+                                }
+                                if let bonus = payout.bonus, bonus > 0 {
+                                    Text("\(Format.money(bonus)) rare bonus").font(.caption).foregroundStyle(.secondary)
                                 }
                             }
                         }

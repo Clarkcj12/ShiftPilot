@@ -4,6 +4,10 @@ struct PayoutSnapshot: Sendable, Equatable {
     var platform: GigPlatform
     var amount: Decimal
     var receivedAt: Date
+    /// One-off incentive included in `amount`.
+    var bonus: Decimal = 0
+
+    var base: Decimal { amount - bonus }
 }
 
 /// Plain-value view of a shift, so earnings math can be tested without SwiftData.
@@ -19,6 +23,8 @@ struct ShiftSnapshot: Sendable {
 
     var duration: TimeInterval { max(0, end.timeIntervalSince(start)) }
     var gross: Decimal { payouts.reduce(0) { $0 + $1.amount } }
+    /// One-off incentives included in `gross`.
+    var bonuses: Decimal { payouts.reduce(0) { $0 + $1.bonus } }
 
     /// True EPH: gross pay over the whole shift, including waiting time between orders.
     var hourlyRate: Decimal? { EarningsCalculator.hourlyRate(gross, over: duration) }
@@ -40,9 +46,12 @@ struct EarningsBreakdown<Key: Hashable & Sendable>: Identifiable, Sendable {
     var key: Key
     var gross: Decimal
     var seconds: TimeInterval
+    /// One-off incentives included in `gross`.
+    var bonuses: Decimal = 0
 
     var id: Key { key }
-    var hourlyRate: Decimal? { EarningsCalculator.hourlyRate(gross, over: seconds) }
+    /// Excludes incentives, so one big bonus doesn't make a platform or time look better than it usually is.
+    var hourlyRate: Decimal? { EarningsCalculator.hourlyRate(gross - bonuses, over: seconds) }
 }
 
 enum Daypart: Int, CaseIterable, Identifiable, Sendable {
@@ -96,17 +105,19 @@ enum EarningsCalculator {
     /// paid during it, so each app's EPH reflects what that shift was worth to it.
     static func byPlatform(_ shifts: [ShiftSnapshot]) -> [EarningsBreakdown<GigPlatform>] {
         var gross: [GigPlatform: Decimal] = [:]
+        var bonuses: [GigPlatform: Decimal] = [:]
         var seconds: [GigPlatform: TimeInterval] = [:]
         for shift in shifts {
             for payout in shift.payouts {
                 gross[payout.platform, default: 0] += payout.amount
+                bonuses[payout.platform, default: 0] += payout.bonus
             }
             for platform in Set(shift.payouts.map(\.platform)) {
                 seconds[platform, default: 0] += shift.duration
             }
         }
         return gross
-            .map { EarningsBreakdown(key: $0.key, gross: $0.value, seconds: seconds[$0.key] ?? 0) }
+            .map { EarningsBreakdown(key: $0.key, gross: $0.value, seconds: seconds[$0.key] ?? 0, bonuses: bonuses[$0.key] ?? 0) }
             .sorted { ($0.hourlyRate ?? -1) > ($1.hourlyRate ?? -1) }
     }
 
@@ -115,6 +126,7 @@ enum EarningsCalculator {
     /// dayparts of that stretch by time, not dropped whole into the minute it was logged.
     static func byDaypart(_ shifts: [ShiftSnapshot], calendar: Calendar = .current) -> [EarningsBreakdown<Daypart>] {
         var gross: [Daypart: Decimal] = [:]
+        var bonuses: [Daypart: Decimal] = [:]
         var seconds: [Daypart: TimeInterval] = [:]
         for shift in shifts {
             for (hour, duration) in secondsByHourOfDay(from: shift.start, to: shift.end, calendar: calendar) {
@@ -123,21 +135,24 @@ enum EarningsCalculator {
             for (daypart, amount) in payByDaypart(shift, calendar: calendar) {
                 gross[daypart, default: 0] += amount
             }
+            for (daypart, amount) in payByDaypart(shift, calendar: calendar, value: \.bonus) {
+                bonuses[daypart, default: 0] += amount
+            }
         }
         return Daypart.allCases.compactMap { daypart in
             guard seconds[daypart] != nil || gross[daypart] != nil else { return nil }
-            return EarningsBreakdown(key: daypart, gross: gross[daypart] ?? 0, seconds: seconds[daypart] ?? 0)
+            return EarningsBreakdown(key: daypart, gross: gross[daypart] ?? 0, seconds: seconds[daypart] ?? 0, bonuses: bonuses[daypart] ?? 0)
         }
     }
 
     /// A shift's pay per daypart. Payout times are clamped to the shift, and payouts at the
     /// same moment share one stretch.
-    static func payByDaypart(_ shift: ShiftSnapshot, calendar: Calendar) -> [Daypart: Decimal] {
+    static func payByDaypart(_ shift: ShiftSnapshot, calendar: Calendar, value: KeyPath<PayoutSnapshot, Decimal> = \.amount) -> [Daypart: Decimal] {
         let byTime = Dictionary(grouping: shift.payouts) { min(max($0.receivedAt, shift.start), max(shift.start, shift.end)) }
         var result: [Daypart: Decimal] = [:]
         var stretchStart = shift.start
         for time in byTime.keys.sorted() {
-            let amount = byTime[time, default: []].reduce(Decimal(0)) { $0 + $1.amount }
+            let amount = byTime[time, default: []].reduce(Decimal(0)) { $0 + $1[keyPath: value] }
             var split: [Daypart: TimeInterval] = [:]
             for (hour, duration) in secondsByHourOfDay(from: stretchStart, to: time, calendar: calendar) {
                 split[Daypart(hour: hour), default: 0] += duration
